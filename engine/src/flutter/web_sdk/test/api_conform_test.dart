@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 // ignore_for_file: avoid_print
+// ignore_for_file: avoid_dynamic_calls
 
 import 'dart:io';
 
@@ -15,7 +16,7 @@ import 'package:analyzer/dart/ast/ast.dart';
 const Set<String> _kObjectMembers = <String>{'==', 'toString', 'hashCode'};
 
 CompilationUnit _parseAndCheckDart(String path) {
-  final FeatureSet analyzerFeatures = FeatureSet.latestLanguageVersion();
+  final analyzerFeatures = FeatureSet.latestLanguageVersion();
   if (!analyzerFeatures.isEnabled(Feature.non_nullable)) {
     throw Exception('non-nullable feature is disabled.');
   }
@@ -37,11 +38,11 @@ void main() {
   // These files just contain imports to the part files;
   final CompilationUnit uiUnit = _parseAndCheckDart('$flutterDir/lib/ui/ui.dart');
   final CompilationUnit webUnit = _parseAndCheckDart('$flutterDir/lib/web_ui/lib/ui.dart');
-  final Map<String, ClassDeclaration> uiClasses = <String, ClassDeclaration>{};
-  final Map<String, ClassDeclaration> webClasses = <String, ClassDeclaration>{};
+  final uiClasses = <String, ClassDeclaration>{};
+  final webClasses = <String, ClassDeclaration>{};
 
-  final Map<String, GenericTypeAlias> uiTypeDefs = <String, GenericTypeAlias>{};
-  final Map<String, GenericTypeAlias> webTypeDefs = <String, GenericTypeAlias>{};
+  final uiTypeDefs = <String, GenericTypeAlias>{};
+  final webTypeDefs = <String, GenericTypeAlias>{};
 
   // Gather all public classes from each library. For now we are skipping
   // other top level members.
@@ -59,7 +60,7 @@ void main() {
     print('Warning: did not resolve any typedefs.');
   }
 
-  bool failed = false;
+  var failed = false;
   print('Checking ${uiClasses.length} public classes.');
   for (final String className in uiClasses.keys) {
     final ClassDeclaration uiClass = uiClasses[className]!;
@@ -76,10 +77,10 @@ void main() {
     }
     // Next will check that the public methods exposed in each library are
     // identical.
-    final Map<String, MethodDeclaration> uiMethods = <String, MethodDeclaration>{};
-    final Map<String, MethodDeclaration> webMethods = <String, MethodDeclaration>{};
-    final Map<String, ConstructorDeclaration> uiConstructors = <String, ConstructorDeclaration>{};
-    final Map<String, ConstructorDeclaration> webConstructors = <String, ConstructorDeclaration>{};
+    final uiMethods = <String, MethodDeclaration>{};
+    final webMethods = <String, MethodDeclaration>{};
+    final uiConstructors = <String, ConstructorDeclaration>{};
+    final webConstructors = <String, ConstructorDeclaration>{};
     _collectPublicMethods(uiClass, uiMethods);
     _collectPublicMethods(webClass, webMethods);
     _collectPublicConstructors(uiClass, uiConstructors);
@@ -104,7 +105,7 @@ void main() {
       }
 
       for (
-        int i = 0;
+        var i = 0;
         i < uiConstructor.parameters.parameters.length &&
             i < uiConstructor.parameters.parameters.length;
         i++
@@ -112,7 +113,7 @@ void main() {
         // Technically you could re-order named parameters and still be valid,
         // but we enforce that they are identical.
         for (
-          int i = 0;
+          var i = 0;
           i < uiConstructor.parameters.parameters.length &&
               i < webConstructor.parameters.parameters.length;
           i++
@@ -168,7 +169,7 @@ void main() {
       // Technically you could re-order named parameters and still be valid,
       // but we enforce that they are identical.
       for (
-        int i = 0;
+        var i = 0;
         i < uiMethod.parameters!.parameters.length && i < webMethod.parameters!.parameters.length;
         i++
       ) {
@@ -196,17 +197,37 @@ void main() {
           );
         }
         // check nullability
-        if (uiParam is SimpleFormalParameter && webParam is SimpleFormalParameter) {
-          final bool isUiNullable = uiParam.type?.question != null;
-          final bool isWebNullable = webParam.type?.question != null;
-          if (isUiNullable != isWebNullable) {
-            failed = true;
-            print(
-              'Warning: lib/ui/ui.dart $className.$methodName parameter $i '
-              '${uiParam.name} has a different nullability than in lib/web_ui/ui.dart.',
-            );
+        if (!_hasDefault(uiParam) &&
+            !_hasDefault(webParam) &&
+            _hasType(uiParam) &&
+            _hasType(webParam)) {
+          final uiType = (uiParam as dynamic).type as TypeAnnotation?;
+          final webType = (webParam as dynamic).type as TypeAnnotation?;
+
+          if (uiType != null && webType != null) {
+            final isUiNullable = uiType.question != null;
+            final isWebNullable = webType.question != null;
+            if (isUiNullable != isWebNullable) {
+              failed = true;
+              print(
+                'Warning: lib/ui/ui.dart $className.$methodName parameter $i '
+                '${(uiParam as dynamic).name} has a different nullability than in lib/web_ui/ui.dart.',
+              );
+            }
           }
         }
+        // Clean Analyzer 13 version (uncomment once migrated):
+        // if (uiParam is RegularFormalParameter && webParam is RegularFormalParameter) {
+        //   final isUiNullable = uiParam.type?.question != null;
+        //   final isWebNullable = webParam.type?.question != null;
+        //   if (isUiNullable != isWebNullable) {
+        //     failed = true;
+        //     print(
+        //       'Warning: lib/ui/ui.dart $className.$methodName parameter $i '
+        //       '${uiParam.name} has a different nullability than in lib/web_ui/ui.dart.',
+        //     );
+        //   }
+        // }
       }
       // check return type.
       if (uiMethod.returnType?.toString() != webMethod.returnType?.toString()) {
@@ -254,7 +275,7 @@ void main() {
     // but we enforce that they are identical.
 
     for (
-      int i = 0;
+      var i = 0;
       i < uiTypeDef.functionType!.parameters.parameters.length &&
           i < webTypeDef.functionType!.parameters.parameters.length;
       i++
@@ -274,12 +295,19 @@ void main() {
 
       // This is not entirely true and can break, but this way we can support both positional and named params
       // (The assumption that the parameter of a DefaultFormalParameter is a SimpleFormalParameter is a stretch)
-      final SimpleFormalParameter uiParam =
-          ((uiFormalParam is DefaultFormalParameter) ? uiFormalParam.parameter : uiFormalParam)
-              as SimpleFormalParameter;
-      final SimpleFormalParameter webParam =
-          ((webFormalParam is DefaultFormalParameter) ? webFormalParam.parameter : uiFormalParam)
-              as SimpleFormalParameter;
+      dynamic uiParam = uiFormalParam;
+      try {
+        uiParam = (uiFormalParam as dynamic).parameter ?? uiParam;
+      } catch (_) {}
+
+      dynamic webParam = webFormalParam;
+      try {
+        webParam = (webFormalParam as dynamic).parameter ?? webParam;
+      } catch (_) {}
+
+      // Clean Analyzer 13 version (uncomment once migrated):
+      // final uiParam = uiFormalParam;
+      // final webParam = webFormalParam;
 
       if (webParam.name == null) {
         failed = true;
@@ -311,8 +339,8 @@ void main() {
         );
       }
 
-      final bool isUiNullable = uiParam.type?.question != null;
-      final bool isWebNullable = webParam.type?.question != null;
+      final isUiNullable = uiParam.type?.question != null;
+      final isWebNullable = webParam.type?.question != null;
       if (isUiNullable != isWebNullable) {
         failed = true;
         print(
@@ -355,7 +383,7 @@ void _collectPublicClasses(
       continue;
     }
     final PartDirective partDirective = directive;
-    final String literalUri = partDirective.uri.toString();
+    final literalUri = partDirective.uri.toString();
     final CompilationUnit subUnit = _parseAndCheckDart(
       '$root${literalUri.substring(1, literalUri.length - 1)}',
     );
@@ -364,10 +392,10 @@ void _collectPublicClasses(
         continue;
       }
       final ClassDeclaration classDeclaration = member;
-      if (classDeclaration.name.lexeme.startsWith('_')) {
+      if (classDeclaration.namePart.typeName.lexeme.startsWith('_')) {
         continue;
       }
-      destination[classDeclaration.name.lexeme] = classDeclaration;
+      destination[classDeclaration.namePart.typeName.lexeme] = classDeclaration;
     }
   }
 }
@@ -376,7 +404,12 @@ void _collectPublicConstructors(
   ClassDeclaration classDeclaration,
   Map<String, ConstructorDeclaration> destination,
 ) {
-  for (final ClassMember member in classDeclaration.members) {
+  final ClassBody classBody = classDeclaration.body;
+  if (classBody is! BlockClassBody) {
+    return;
+  }
+
+  for (final ClassMember member in classBody.members) {
     if (member is! ConstructorDeclaration) {
       continue;
     }
@@ -396,7 +429,12 @@ void _collectPublicMethods(
   ClassDeclaration classDeclaration,
   Map<String, MethodDeclaration> destination,
 ) {
-  for (final ClassMember member in classDeclaration.members) {
+  final ClassBody classBody = classDeclaration.body;
+  if (classBody is! BlockClassBody) {
+    return;
+  }
+
+  for (final ClassMember member in classBody.members) {
     if (member is! MethodDeclaration) {
       continue;
     }
@@ -417,7 +455,7 @@ void _collectPublicTypeDefs(
       continue;
     }
     final PartDirective partDirective = directive;
-    final String literalUri = partDirective.uri.toString();
+    final literalUri = partDirective.uri.toString();
     final CompilationUnit subUnit = _parseAndCheckDart(
       '$root${literalUri.substring(1, literalUri.length - 1)}',
     );
@@ -432,4 +470,27 @@ void _collectPublicTypeDefs(
       destination[typeDeclaration.name.lexeme] = typeDeclaration;
     }
   }
+}
+
+bool _hasDefault(dynamic p) {
+  try {
+    if (p.parameter != null) {
+      return true;
+    }
+  } catch (_) {}
+  try {
+    if (p.defaultClause != null) {
+      return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
+bool _hasType(dynamic p) {
+  try {
+    // ignore: unused_local_variable
+    final dynamic type = p.type;
+    return true;
+  } catch (_) {}
+  return false;
 }

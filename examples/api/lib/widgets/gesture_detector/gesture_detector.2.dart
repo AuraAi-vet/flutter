@@ -32,13 +32,15 @@ class NestedGestureDetectorsExample extends StatefulWidget {
   const NestedGestureDetectorsExample({super.key});
 
   @override
-  State<NestedGestureDetectorsExample> createState() => _NestedGestureDetectorsExampleState();
+  State<NestedGestureDetectorsExample> createState() =>
+      _NestedGestureDetectorsExampleState();
 }
 
-class _NestedGestureDetectorsExampleState extends State<NestedGestureDetectorsExample> {
+class _NestedGestureDetectorsExampleState
+    extends State<NestedGestureDetectorsExample> {
   bool _isYellowTranslucent = false;
-  _OnTapWinner _winner = _OnTapWinner.none;
-  final Border highlightBorder = Border.all(color: Colors.red, width: 5);
+  _OnTapWinner _winner = .none;
+  final Border highlightBorder = .all(color: Colors.red, width: 5);
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +57,7 @@ class _NestedGestureDetectorsExampleState extends State<NestedGestureDetectorsEx
             onTapDown: (_) => debugPrint('Green onTapDown'),
             onTapCancel: () => debugPrint('Green onTapCancel'),
             child: Container(
-              alignment: Alignment.center,
+              alignment: .center,
               decoration: BoxDecoration(
                 border: _winner == _OnTapWinner.green ? highlightBorder : null,
                 color: Colors.green,
@@ -75,16 +77,18 @@ class _NestedGestureDetectorsExampleState extends State<NestedGestureDetectorsEx
                   });
                 },
                 child: Container(
-                  alignment: Alignment.center,
+                  alignment: .center,
                   decoration: BoxDecoration(
-                    border: _winner == _OnTapWinner.yellow ? highlightBorder : null,
+                    border: _winner == _OnTapWinner.yellow
+                        ? highlightBorder
+                        : null,
                     color: Colors.amber,
                   ),
                   width: 200,
                   height: 200,
                   child: Text(
                     'HitTextBehavior.${_isYellowTranslucent ? 'translucent' : 'opaque'}',
-                    textAlign: TextAlign.center,
+                    textAlign: .center,
                   ),
                 ),
               ),
@@ -92,7 +96,7 @@ class _NestedGestureDetectorsExampleState extends State<NestedGestureDetectorsEx
           ),
         ),
         Padding(
-          padding: const EdgeInsets.all(8.0),
+          padding: const .all(8.0),
           child: Row(
             children: <Widget>[
               ElevatedButton(

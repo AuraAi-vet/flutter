@@ -35,7 +35,10 @@ class DynamicColorExample extends StatefulWidget {
     ),
   ];
 
-  final Future<ColorScheme> Function(ImageProvider<Object> provider, Brightness brightness)?
+  final Future<ColorScheme> Function(
+    ImageProvider<Object> provider,
+    Brightness brightness,
+  )?
   loadColorScheme;
 
   @override
@@ -69,28 +72,31 @@ class _DynamicColorExampleState extends State<DynamicColorExample> {
 
     final ThemeData lightTheme = ThemeData(
       colorSchemeSeed: selectedColor,
-      brightness: Brightness.light,
+      brightness: .light,
       useMaterial3: false,
     );
     final ThemeData darkTheme = ThemeData(
       colorSchemeSeed: selectedColor,
-      brightness: Brightness.dark,
+      brightness: .dark,
       useMaterial3: false,
     );
 
     Widget schemeLabel(String brightness, ColorScheme colorScheme) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 15),
+        padding: const .symmetric(vertical: 15),
         child: Text(
           brightness,
-          style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSecondaryContainer),
+          style: TextStyle(
+            fontWeight: .bold,
+            color: colorScheme.onSecondaryContainer,
+          ),
         ),
       );
     }
 
     Widget schemeView(ThemeData theme) {
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 15),
+        padding: const .symmetric(horizontal: 15),
         child: ColorSchemeView(colorScheme: theme.colorScheme),
       );
     }
@@ -107,7 +113,7 @@ class _DynamicColorExampleState extends State<DynamicColorExample> {
             actions: <Widget>[
               const Icon(Icons.light_mode),
               Switch(
-                activeColor: colorScheme.primary,
+                activeThumbColor: colorScheme.primary,
                 activeTrackColor: colorScheme.surface,
                 inactiveTrackColor: colorScheme.onSecondary,
                 value: isLight,
@@ -128,59 +134,80 @@ class _DynamicColorExampleState extends State<DynamicColorExample> {
                     child: Column(
                       children: <Widget>[
                         divider,
-                        _imagesRow(context, DynamicColorExample.images, colorScheme),
+                        _imagesRow(
+                          context,
+                          DynamicColorExample.images,
+                          colorScheme,
+                        ),
                         divider,
                         Expanded(
                           child: ColoredBox(
                             color: colorScheme.surface,
                             child: LayoutBuilder(
-                              builder: (BuildContext context, BoxConstraints constraints) {
-                                if (constraints.maxWidth < narrowScreenWidthThreshold) {
-                                  return SingleChildScrollView(
-                                    child: Column(
-                                      children: <Widget>[
-                                        divider,
-                                        schemeLabel('Light ColorScheme', colorScheme),
-                                        schemeView(lightTheme),
-                                        divider,
-                                        divider,
-                                        schemeLabel('Dark ColorScheme', colorScheme),
-                                        schemeView(darkTheme),
-                                      ],
-                                    ),
-                                  );
-                                } else {
-                                  return SingleChildScrollView(
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(top: 5),
-                                      child: Column(
-                                        children: <Widget>[
-                                          Row(
+                              builder:
+                                  (
+                                    BuildContext context,
+                                    BoxConstraints constraints,
+                                  ) {
+                                    if (constraints.maxWidth <
+                                        narrowScreenWidthThreshold) {
+                                      return SingleChildScrollView(
+                                        child: Column(
+                                          children: <Widget>[
+                                            divider,
+                                            schemeLabel(
+                                              'Light ColorScheme',
+                                              colorScheme,
+                                            ),
+                                            schemeView(lightTheme),
+                                            divider,
+                                            divider,
+                                            schemeLabel(
+                                              'Dark ColorScheme',
+                                              colorScheme,
+                                            ),
+                                            schemeView(darkTheme),
+                                          ],
+                                        ),
+                                      );
+                                    } else {
+                                      return SingleChildScrollView(
+                                        child: Padding(
+                                          padding: const .only(top: 5),
+                                          child: Column(
                                             children: <Widget>[
-                                              Expanded(
-                                                child: Column(
-                                                  children: <Widget>[
-                                                    schemeLabel('Light ColorScheme', colorScheme),
-                                                    schemeView(lightTheme),
-                                                  ],
-                                                ),
-                                              ),
-                                              Expanded(
-                                                child: Column(
-                                                  children: <Widget>[
-                                                    schemeLabel('Dark ColorScheme', colorScheme),
-                                                    schemeView(darkTheme),
-                                                  ],
-                                                ),
+                                              Row(
+                                                children: <Widget>[
+                                                  Expanded(
+                                                    child: Column(
+                                                      children: <Widget>[
+                                                        schemeLabel(
+                                                          'Light ColorScheme',
+                                                          colorScheme,
+                                                        ),
+                                                        schemeView(lightTheme),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  Expanded(
+                                                    child: Column(
+                                                      children: <Widget>[
+                                                        schemeLabel(
+                                                          'Dark ColorScheme',
+                                                          colorScheme,
+                                                        ),
+                                                        schemeView(darkTheme),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ],
                                           ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                }
-                              },
+                                        ),
+                                      );
+                                    }
+                                  },
                             ),
                           ),
                         ),
@@ -198,12 +225,12 @@ class _DynamicColorExampleState extends State<DynamicColorExample> {
     if (widget.loadColorScheme != null) {
       newColorScheme = await widget.loadColorScheme!(
         provider,
-        isLight ? Brightness.light : Brightness.dark,
+        isLight ? .light : .dark,
       );
     } else {
       newColorScheme = await ColorScheme.fromImageProvider(
         provider: provider,
-        brightness: isLight ? Brightness.light : Brightness.dark,
+        brightness: isLight ? .light : .dark,
       );
     }
     if (!mounted) {
@@ -217,11 +244,15 @@ class _DynamicColorExampleState extends State<DynamicColorExample> {
 
   // For small screens, have two rows of image selection. For wide screens,
   // fit them onto one row.
-  Widget _imagesRow(BuildContext context, List<ImageProvider> images, ColorScheme colorScheme) {
-    final double windowHeight = MediaQuery.of(context).size.height;
-    final double windowWidth = MediaQuery.of(context).size.width;
+  Widget _imagesRow(
+    BuildContext context,
+    List<ImageProvider> images,
+    ColorScheme colorScheme,
+  ) {
+    final double windowHeight = MediaQuery.heightOf(context);
+    final double windowWidth = MediaQuery.widthOf(context);
     return Padding(
-      padding: const EdgeInsets.all(8.0),
+      padding: const .all(8.0),
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
           if (constraints.maxWidth > 800) {
@@ -229,8 +260,16 @@ class _DynamicColorExampleState extends State<DynamicColorExample> {
           } else {
             return Column(
               children: <Widget>[
-                _adaptiveLayoutImagesRow(images.sublist(0, 3), colorScheme, windowWidth),
-                _adaptiveLayoutImagesRow(images.sublist(3), colorScheme, windowWidth),
+                _adaptiveLayoutImagesRow(
+                  images.sublist(0, 3),
+                  colorScheme,
+                  windowWidth,
+                ),
+                _adaptiveLayoutImagesRow(
+                  images.sublist(3),
+                  colorScheme,
+                  windowWidth,
+                ),
               ],
             );
           }
@@ -245,7 +284,7 @@ class _DynamicColorExampleState extends State<DynamicColorExample> {
     double windowWidth,
   ) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisAlignment: .center,
       children: images
           .map(
             (ImageProvider image) => Flexible(
@@ -253,15 +292,16 @@ class _DynamicColorExampleState extends State<DynamicColorExample> {
               child: GestureDetector(
                 onTap: () => _updateImage(image),
                 child: Card(
-                  color: DynamicColorExample.images.indexOf(image) == selectedImage
+                  color:
+                      DynamicColorExample.images.indexOf(image) == selectedImage
                       ? colorScheme.primaryContainer
                       : colorScheme.surface,
                   child: Padding(
-                    padding: const EdgeInsets.all(5.0),
+                    padding: const .all(5.0),
                     child: ConstrainedBox(
                       constraints: BoxConstraints(maxWidth: windowWidth * .25),
                       child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8.0),
+                        borderRadius: .circular(8.0),
                         child: Image(image: image),
                       ),
                     ),
@@ -286,7 +326,11 @@ class ColorSchemeView extends StatelessWidget {
       children: <Widget>[
         ColorGroup(
           children: <ColorChip>[
-            ColorChip(label: 'primary', color: colorScheme.primary, onColor: colorScheme.onPrimary),
+            ColorChip(
+              label: 'primary',
+              color: colorScheme.primary,
+              onColor: colorScheme.onPrimary,
+            ),
             ColorChip(
               label: 'onPrimary',
               color: colorScheme.onPrimary,
@@ -357,8 +401,16 @@ class ColorSchemeView extends StatelessWidget {
         divider,
         ColorGroup(
           children: <ColorChip>[
-            ColorChip(label: 'error', color: colorScheme.error, onColor: colorScheme.onError),
-            ColorChip(label: 'onError', color: colorScheme.onError, onColor: colorScheme.error),
+            ColorChip(
+              label: 'error',
+              color: colorScheme.error,
+              onColor: colorScheme.onError,
+            ),
+            ColorChip(
+              label: 'onError',
+              color: colorScheme.onError,
+              onColor: colorScheme.error,
+            ),
             ColorChip(
               label: 'errorContainer',
               color: colorScheme.errorContainer,
@@ -374,7 +426,11 @@ class ColorSchemeView extends StatelessWidget {
         divider,
         ColorGroup(
           children: <ColorChip>[
-            ColorChip(label: 'surface', color: colorScheme.surface, onColor: colorScheme.onSurface),
+            ColorChip(
+              label: 'surface',
+              color: colorScheme.surface,
+              onColor: colorScheme.onSurface,
+            ),
             ColorChip(
               label: 'onSurface',
               color: colorScheme.onSurface,
@@ -423,7 +479,7 @@ class ColorGroup extends StatelessWidget {
   Widget build(BuildContext context) {
     return RepaintBoundary(
       child: Card(
-        clipBehavior: Clip.antiAlias,
+        clipBehavior: .antiAlias,
         child: Column(children: children),
       ),
     );
@@ -431,7 +487,12 @@ class ColorGroup extends StatelessWidget {
 }
 
 class ColorChip extends StatelessWidget {
-  const ColorChip({super.key, required this.color, required this.label, this.onColor});
+  const ColorChip({
+    super.key,
+    required this.color,
+    required this.label,
+    this.onColor,
+  });
 
   final Color color;
   final Color? onColor;
@@ -440,8 +501,8 @@ class ColorChip extends StatelessWidget {
   static Color contrastColor(Color color) {
     final Brightness brightness = ThemeData.estimateBrightnessForColor(color);
     return switch (brightness) {
-      Brightness.dark => Colors.white,
-      Brightness.light => Colors.black,
+      .dark => Colors.white,
+      .light => Colors.black,
     };
   }
 
@@ -451,7 +512,7 @@ class ColorChip extends StatelessWidget {
     return ColoredBox(
       color: color,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const .all(16),
         child: Row(
           children: <Expanded>[
             Expanded(

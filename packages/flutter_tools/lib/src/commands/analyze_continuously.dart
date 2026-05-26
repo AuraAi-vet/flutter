@@ -24,11 +24,11 @@ class AnalyzeContinuously extends AnalyzeBase {
   }) : super(repoPackages: repoPackages);
 
   String? analysisTarget;
-  var firstAnalysis = true;
-  var analyzedPaths = <String>{};
-  var analysisErrors = <String, List<AnalysisError>>{};
+  bool firstAnalysis = true;
+  Set<String> analyzedPaths = <String>{};
+  Map<String, List<AnalysisError>> analysisErrors = <String, List<AnalysisError>>{};
   final analysisTimer = Stopwatch();
-  var lastErrorCount = 0;
+  int lastErrorCount = 0;
   Status? analysisStatus;
 
   @override
@@ -138,8 +138,6 @@ class AnalyzeContinuously extends AnalyzeBase {
   }
 
   void _handleAnalysisErrors(FileAnalysisErrors fileErrors) {
-    fileErrors.errors.removeWhere((AnalysisError error) => error.type == 'TODO');
-
     analyzedPaths.add(fileErrors.file);
     analysisErrors[fileErrors.file] = fileErrors.errors;
   }

@@ -176,8 +176,7 @@ class _LayoutBuilderElement<LayoutInfoType> extends RenderObjectElement {
   @override
   void update(AbstractLayoutBuilder<LayoutInfoType> newWidget) {
     assert(widget != newWidget);
-    final AbstractLayoutBuilder<LayoutInfoType> oldWidget =
-        widget as AbstractLayoutBuilder<LayoutInfoType>;
+    final oldWidget = widget as AbstractLayoutBuilder<LayoutInfoType>;
     super.update(newWidget);
     assert(widget == newWidget);
 
@@ -296,7 +295,7 @@ class _LayoutBuilderElement<LayoutInfoType> extends RenderObjectElement {
 }
 
 /// Generic mixin for [RenderObject]s created by an [AbstractLayoutBuilder] with
-/// the the same `LayoutInfoType`.
+/// the same `LayoutInfoType`.
 ///
 /// Provides a [layoutCallback] implementation which, if needed, invokes
 /// [AbstractLayoutBuilder]'s builder callback.
@@ -343,7 +342,7 @@ mixin RenderAbstractLayoutBuilderMixin<LayoutInfoType, ChildType extends RenderO
 }
 
 /// Generic mixin for [RenderObject]s created by an [AbstractLayoutBuilder] with
-/// the the same `LayoutInfoType`.
+/// the same `LayoutInfoType`.
 ///
 /// Use [RenderAbstractLayoutBuilderMixin] instead, which replaces this mixin.
 typedef RenderConstrainedLayoutBuilder<LayoutInfoType, ChildType extends RenderObject> =
@@ -494,7 +493,7 @@ FlutterErrorDetails _reportException(
   StackTrace stack, {
   InformationCollector? informationCollector,
 }) {
-  final FlutterErrorDetails details = FlutterErrorDetails(
+  final details = FlutterErrorDetails(
     exception: exception,
     stack: stack,
     library: 'widgets library',

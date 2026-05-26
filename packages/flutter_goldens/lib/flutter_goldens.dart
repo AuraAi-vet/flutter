@@ -2,6 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// We use `print` for logging here.
+// ignore_for_file: avoid_print
+
 /// @docImport 'dart:io';
 library;
 
@@ -65,7 +68,7 @@ Future<void> testExecutable(FutureOr<void> Function() testMain, {String? namePre
   const Platform platform = LocalPlatform();
   const FileSystem fs = LocalFileSystem();
   const ProcessManager process = LocalProcessManager();
-  final io.HttpClient httpClient = io.HttpClient();
+  final httpClient = io.HttpClient();
   if (FlutterPostSubmitFileComparator.isForEnvironment(platform)) {
     goldenFileComparator = await FlutterPostSubmitFileComparator.fromLocalFileComparator(
       localFileComparator: goldenFileComparator as LocalFileComparator,
@@ -499,7 +502,7 @@ class FlutterSkippingFileComparator extends FlutterGoldenFileComparator {
     required io.HttpClient httpClient,
   }) {
     final Uri basedir = localFileComparator.basedir;
-    final SkiaGoldClient skiaClient = SkiaGoldClient(
+    final skiaClient = SkiaGoldClient(
       fs.directory(basedir),
       platform: platform,
       log: log,
@@ -669,7 +672,7 @@ class FlutterLocalFileComparator extends FlutterGoldenFileComparator with LocalC
         'https://flutter-gold.skia.org.\n'
         'Validate image output found at $basedir',
       );
-      update(golden, imageBytes);
+      await update(golden, imageBytes);
       return true;
     }
 

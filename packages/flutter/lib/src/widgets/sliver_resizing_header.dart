@@ -90,7 +90,11 @@ class SliverResizingHeader extends StatelessWidget {
     return _SliverResizingHeader(
       minExtentPrototype: _excludeFocus(minExtentPrototype),
       maxExtentPrototype: _excludeFocus(maxExtentPrototype),
-      child: child ?? const SizedBox.shrink(),
+      child: Semantics(
+        container: true,
+        explicitChildNodes: true,
+        child: child ?? const SizedBox.shrink(),
+      ),
     );
   }
 }
@@ -158,7 +162,7 @@ class _RenderSliverResizingHeader extends RenderSliver
     SliverConstraints constraints,
     SliverGeometry geometry,
   ) {
-    final SliverPhysicalParentData childParentData = child.parentData! as SliverPhysicalParentData;
+    final childParentData = child.parentData! as SliverPhysicalParentData;
     final AxisDirection direction = applyGrowthDirectionToAxisDirection(
       constraints.axisDirection,
       constraints.growthDirection,
@@ -227,15 +231,14 @@ class _RenderSliverResizingHeader extends RenderSliver
 
   @override
   void applyPaintTransform(RenderObject child, Matrix4 transform) {
-    final SliverPhysicalParentData childParentData = child.parentData! as SliverPhysicalParentData;
+    final childParentData = child.parentData! as SliverPhysicalParentData;
     childParentData.applyPaintTransform(transform);
   }
 
   @override
   void paint(PaintingContext context, Offset offset) {
     if (child != null && geometry!.visible) {
-      final SliverPhysicalParentData childParentData =
-          child!.parentData! as SliverPhysicalParentData;
+      final childParentData = child!.parentData! as SliverPhysicalParentData;
       context.paintChild(child!, offset + childParentData.paintOffset);
     }
   }
@@ -256,5 +259,14 @@ class _RenderSliverResizingHeader extends RenderSliver
       );
     }
     return false;
+  }
+
+  @override
+  void describeSemanticsConfiguration(SemanticsConfiguration config) {
+    super.describeSemanticsConfiguration(config);
+
+    if (geometry != null && geometry!.layoutExtent < childExtent) {
+      config.addTagForChildren(RenderViewport.excludeFromScrolling);
+    }
   }
 }

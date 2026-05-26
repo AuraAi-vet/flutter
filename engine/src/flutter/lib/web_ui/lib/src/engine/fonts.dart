@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:typed_data';
 
+import 'package:meta/meta.dart';
 import 'package:ui/src/engine.dart';
 import 'package:ui/ui_web/src/ui_web.dart' as ui_web;
 
@@ -31,8 +32,7 @@ class FontManifest {
 }
 
 Future<FontManifest> fetchFontManifest(ui_web.AssetManager assetManager) async {
-  final HttpFetchResponse response =
-      await assetManager.loadAsset('FontManifest.json') as HttpFetchResponse;
+  final response = await assetManager.loadAsset('FontManifest.json') as HttpFetchResponse;
   if (!response.hasPayload) {
     printWarning('Font manifest does not exist at `${response.url}` - ignoring.');
     return FontManifest(<FontFamily>[]);
@@ -56,14 +56,14 @@ Future<FontManifest> fetchFontManifest(ui_web.AssetManager assetManager) async {
   final List<FontFamily> families = (fontManifestJson! as List<dynamic>).map((
     dynamic fontFamilyJson,
   ) {
-    final Map<String, dynamic> fontFamily = fontFamilyJson as Map<String, dynamic>;
+    final fontFamily = fontFamilyJson as Map<String, dynamic>;
     final String familyName = fontFamily.readString('family');
     final List<dynamic> fontAssets = fontFamily.readList('fonts');
     return FontFamily(
       familyName,
       fontAssets.map((dynamic fontAssetJson) {
         String? asset;
-        final Map<String, String> descriptors = <String, String>{};
+        final descriptors = <String, String>{};
         for (final MapEntry<String, dynamic> descriptor
             in (fontAssetJson as Map<String, dynamic>).entries) {
           if (descriptor.key == 'asset') {
@@ -125,17 +125,28 @@ class AssetFontsResult {
 
 abstract class FlutterFontCollection {
   /// Loads a font directly from font data.
-  Future<bool> loadFontFromList(Uint8List list, {String? fontFamily});
+  Future<bool> loadFontFromBytes(Uint8List list, {String? fontFamily});
 
   /// Completes when fonts from FontManifest.json have been loaded.
   Future<AssetFontsResult> loadAssetFonts(FontManifest manifest);
 
-  // The font fallback manager for this font collection. HTML renderer doesn't
-  // have a font fallback manager and just relies on the browser to fall back
-  // properly.
-  FontFallbackManager? get fontFallbackManager;
+  /// The font fallback manager for this font collection.
+  ///
+  /// The fallback manager is responsible for finding and loading alternative
+  /// fonts when a character is not supported by any of the primary fonts.
+  FontFallbackManager get fontFallbackManager;
+
+  @visibleForTesting
+  set fontFallbackManager(FontFallbackManager value);
+
+  /// The font fallback registry for this font collection.
+  FallbackFontRegistry? get fallbackFontRegistry;
+
+  @visibleForTesting
+  set fallbackFontRegistry(FallbackFontRegistry? value);
 
   // Reset the state of font fallbacks. Only to be used in testing.
+  @visibleForTesting
   void debugResetFallbackFonts();
 
   // Unregisters all fonts.

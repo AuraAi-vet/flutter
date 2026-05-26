@@ -21,7 +21,7 @@ class CarouselExampleApp extends StatelessWidget {
           title: const Text('Flutter TV'),
           actions: const <Widget>[
             Padding(
-              padding: EdgeInsetsDirectional.only(end: 16.0),
+              padding: .directional(end: 16.0),
               child: CircleAvatar(child: Icon(Icons.account_circle)),
             ),
           ],
@@ -67,7 +67,7 @@ class _CarouselExampleState extends State<CarouselExample> {
         ),
         const SizedBox(height: 20),
         const Padding(
-          padding: EdgeInsetsDirectional.only(top: 8.0, start: 8.0),
+          padding: .directional(top: 8.0, start: 8.0),
           child: Text('Multi-browse layout'),
         ),
         ConstrainedBox(
@@ -77,7 +77,8 @@ class _CarouselExampleState extends State<CarouselExample> {
             consumeMaxWeight: false,
             children: List<Widget>.generate(20, (int index) {
               return ColoredBox(
-                color: Colors.primaries[index % Colors.primaries.length].withOpacity(0.8),
+                color: Colors.primaries[index % Colors.primaries.length]
+                    .withValues(alpha: 0.8),
                 child: const SizedBox.expand(),
               );
             }),
@@ -94,13 +95,13 @@ class _CarouselExampleState extends State<CarouselExample> {
                 color: info.backgroundColor,
                 child: Center(
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisAlignment: .center,
                     children: <Widget>[
                       Icon(info.icon, color: info.color, size: 32.0),
                       Text(
                         info.label,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                        overflow: TextOverflow.clip,
+                        style: const TextStyle(fontWeight: .bold),
+                        overflow: .clip,
                         softWrap: false,
                       ),
                     ],
@@ -112,7 +113,7 @@ class _CarouselExampleState extends State<CarouselExample> {
         ),
         const SizedBox(height: 20),
         const Padding(
-          padding: EdgeInsetsDirectional.only(top: 8.0, start: 8.0),
+          padding: .directional(top: 8.0, start: 8.0),
           child: Text('Uncontained layout'),
         ),
         ConstrainedBox(
@@ -139,14 +140,14 @@ class HeroLayoutCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final double width = MediaQuery.sizeOf(context).width;
     return Stack(
-      alignment: AlignmentDirectional.bottomStart,
+      alignment: .bottomStart,
       children: <Widget>[
         ClipRect(
           child: OverflowBox(
             maxWidth: width * 7 / 8,
             minWidth: width * 7 / 8,
             child: Image(
-              fit: BoxFit.cover,
+              fit: .cover,
               image: NetworkImage(
                 'https://flutter.github.io/assets-for-api-docs/assets/material/${imageInfo.url}',
               ),
@@ -154,23 +155,27 @@ class HeroLayoutCard extends StatelessWidget {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.all(18.0),
+          padding: const .all(18.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: .start,
+            mainAxisSize: .min,
             children: <Widget>[
               Text(
                 imageInfo.title,
-                overflow: TextOverflow.clip,
+                overflow: .clip,
                 softWrap: false,
-                style: Theme.of(context).textTheme.headlineLarge?.copyWith(color: Colors.white),
+                style: Theme.of(
+                  context,
+                ).textTheme.headlineLarge?.copyWith(color: Colors.white),
               ),
               const SizedBox(height: 10),
               Text(
                 imageInfo.subtitle,
-                overflow: TextOverflow.clip,
+                overflow: .clip,
                 softWrap: false,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: Colors.white),
               ),
             ],
           ),
@@ -181,7 +186,11 @@ class HeroLayoutCard extends StatelessWidget {
 }
 
 class UncontainedLayoutCard extends StatelessWidget {
-  const UncontainedLayoutCard({super.key, required this.index, required this.label});
+  const UncontainedLayoutCard({
+    super.key,
+    required this.index,
+    required this.label,
+  });
 
   final int index;
   final String label;
@@ -189,12 +198,14 @@ class UncontainedLayoutCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: Colors.primaries[index % Colors.primaries.length].withOpacity(0.5),
+      color: Colors.primaries[index % Colors.primaries.length].withValues(
+        alpha: 0.5,
+      ),
       child: Center(
         child: Text(
           label,
           style: const TextStyle(color: Colors.white, fontSize: 20),
-          overflow: TextOverflow.clip,
+          overflow: .clip,
           softWrap: false,
         ),
       ),
@@ -208,8 +219,18 @@ enum CardInfo {
   climate('Climate', Icons.thermostat, Color(0xffA44D2A), Color(0xffFAEDE7)),
   wifi('Wifi', Icons.wifi, Color(0xff417345), Color(0xffE5F4E0)),
   media('Media', Icons.library_music, Color(0xff2556C8), Color(0xffECEFFD)),
-  security('Security', Icons.crisis_alert, Color(0xff794C01), Color(0xffFAEEDF)),
-  safety('Safety', Icons.medical_services, Color(0xff2251C5), Color(0xffECEFFD)),
+  security(
+    'Security',
+    Icons.crisis_alert,
+    Color(0xff794C01),
+    Color(0xffFAEEDF),
+  ),
+  safety(
+    'Safety',
+    Icons.medical_services,
+    Color(0xff2251C5),
+    Color(0xffECEFFD),
+  ),
   more('', Icons.add, Color(0xff201D1C), Color(0xffE3DFD8));
 
   const CardInfo(this.label, this.icon, this.color, this.backgroundColor);
@@ -220,16 +241,36 @@ enum CardInfo {
 }
 
 enum ImageInfo {
-  image0('The Flow', 'Sponsored | Season 1 Now Streaming', 'content_based_color_scheme_1.png'),
+  image0(
+    'The Flow',
+    'Sponsored | Season 1 Now Streaming',
+    'content_based_color_scheme_1.png',
+  ),
   image1(
     'Through the Pane',
     'Sponsored | Season 1 Now Streaming',
     'content_based_color_scheme_2.png',
   ),
-  image2('Iridescence', 'Sponsored | Season 1 Now Streaming', 'content_based_color_scheme_3.png'),
-  image3('Sea Change', 'Sponsored | Season 1 Now Streaming', 'content_based_color_scheme_4.png'),
-  image4('Blue Symphony', 'Sponsored | Season 1 Now Streaming', 'content_based_color_scheme_5.png'),
-  image5('When It Rains', 'Sponsored | Season 1 Now Streaming', 'content_based_color_scheme_6.png');
+  image2(
+    'Iridescence',
+    'Sponsored | Season 1 Now Streaming',
+    'content_based_color_scheme_3.png',
+  ),
+  image3(
+    'Sea Change',
+    'Sponsored | Season 1 Now Streaming',
+    'content_based_color_scheme_4.png',
+  ),
+  image4(
+    'Blue Symphony',
+    'Sponsored | Season 1 Now Streaming',
+    'content_based_color_scheme_5.png',
+  ),
+  image5(
+    'When It Rains',
+    'Sponsored | Season 1 Now Streaming',
+    'content_based_color_scheme_6.png',
+  );
 
   const ImageInfo(this.title, this.subtitle, this.url);
   final String title;

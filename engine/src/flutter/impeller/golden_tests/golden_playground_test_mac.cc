@@ -12,13 +12,17 @@
 #include "flutter/impeller/golden_tests/golden_digest.h"
 #include "flutter/impeller/golden_tests/metal_screenshotter.h"
 #include "flutter/impeller/golden_tests/vulkan_screenshotter.h"
-#include "flutter/third_party/abseil-cpp/absl/base/no_destructor.h"
 #include "fml/closure.h"
 #include "impeller/display_list/aiks_context.h"
 #include "impeller/display_list/dl_dispatcher.h"
 #include "impeller/display_list/dl_image_impeller.h"
+#include "impeller/renderer/command_buffer.h"
+#include "impeller/renderer/command_queue.h"
+#include "impeller/renderer/render_pass.h"
+#include "impeller/renderer/render_target.h"
 #include "impeller/typographer/backends/skia/typographer_context_skia.h"
 #include "impeller/typographer/typographer_context.h"
+#include "third_party/abseil-cpp/absl/base/no_destructor.h"
 
 #define GLFW_INCLUDE_NONE
 #include "third_party/glfw/include/GLFW/glfw3.h"
@@ -166,6 +170,9 @@ void GoldenPlaygroundTest::SetUp() {
   switches.flags.antialiased_lines =
       test_name.find("ExperimentAntialiasLines_") != std::string::npos;
   switch (GetParam()) {
+    case PlaygroundBackend::kMetalSDF:
+      switches.flags.use_sdfs = true;
+      [[fallthrough]];
     case PlaygroundBackend::kMetal:
       if (!DoesSupportWideGamutTests()) {
         GTEST_SKIP()
@@ -247,6 +254,53 @@ bool GoldenPlaygroundTest::OpenPlaygroundHere(
   return OpenPlaygroundHere([&list]() { return list; });
 }
 
+bool GoldenPlaygroundTest::OpenPlaygroundHere(
+    const Playground::SinglePassCallback& callback) {
+  AiksContext renderer(GetContext(), typographer_context_);
+  std::shared_ptr<Context> context = GetContext();
+  Point content_scale =
+      pimpl_->screenshotter->GetPlayground().GetContentScale();
+  ISize size(std::round(pimpl_->window_size.width * content_scale.x),
+             std::round(pimpl_->window_size.height * content_scale.y));
+
+  std::unique_ptr<testing::Screenshot> screenshot;
+  // Render twice so the second pass observes warmed pipeline and resource
+  // caches, matching the display list path above.
+  for (int i = 0; i < 2; ++i) {
+    RenderTargetAllocator render_target_allocator(
+        context->GetResourceAllocator());
+    RenderTarget render_target = render_target_allocator.CreateOffscreen(
+        *context, size, /*mip_count=*/1, "Golden Render Pass",
+        RenderTarget::kDefaultColorAttachmentConfig,
+        /*stencil_attachment_config=*/std::nullopt);
+    if (!render_target.IsValid()) {
+      return false;
+    }
+    std::shared_ptr<CommandBuffer> command_buffer =
+        context->CreateCommandBuffer();
+    if (!command_buffer) {
+      return false;
+    }
+    std::shared_ptr<RenderPass> render_pass =
+        command_buffer->CreateRenderPass(render_target);
+    if (!render_pass) {
+      return false;
+    }
+    if (!callback(*render_pass)) {
+      return false;
+    }
+    if (!render_pass->EncodeCommands()) {
+      return false;
+    }
+    if (!context->GetCommandQueue()->Submit({command_buffer}).ok()) {
+      return false;
+    }
+    screenshot = pimpl_->screenshotter->MakeScreenshot(
+        renderer, render_target.GetRenderTargetTexture());
+  }
+  return SaveScreenshot(std::move(screenshot));
+}
+
 bool GoldenPlaygroundTest::ImGuiBegin(const char* name,
                                       bool* p_open,
                                       ImGuiWindowFlags flags) {
@@ -274,12 +328,12 @@ sk_sp<flutter::DlImage> GoldenPlaygroundTest::CreateDlImageForFixture(
   return DlImageImpeller::Make(texture);
 }
 
-RuntimeStage::Map GoldenPlaygroundTest::OpenAssetAsRuntimeStage(
+absl::StatusOr<RuntimeStage::Map> GoldenPlaygroundTest::OpenAssetAsRuntimeStage(
     const char* asset_name) const {
   const std::shared_ptr<fml::Mapping> fixture =
       flutter::testing::OpenFixtureAsMapping(asset_name);
   if (!fixture || fixture->GetSize() == 0) {
-    return {};
+    return absl::NotFoundError("Asset not found or empty.");
   }
   return RuntimeStage::DecodeRuntimeStages(fixture);
 }
@@ -322,6 +376,10 @@ ISize GoldenPlaygroundTest::GetWindowSize() const {
   return pimpl_->window_size;
 }
 
+IRect GoldenPlaygroundTest::GetWindowBounds() const {
+  return IRect::MakeSize(pimpl_->window_size);
+}
+
 void GoldenPlaygroundTest::GoldenPlaygroundTest::SetWindowSize(ISize size) {
   pimpl_->window_size = size;
 }
@@ -342,6 +400,10 @@ std::unique_ptr<testing::Screenshot> GoldenPlaygroundTest::MakeScreenshot(
       std::round(pimpl_->window_size.height * content_scale.y));
   return pimpl_->screenshotter->MakeScreenshot(
       renderer, DisplayListToTexture(list, physical_window_size, renderer));
+}
+
+RuntimeStageBackend GoldenPlaygroundTest::GetRuntimeStageBackend() const {
+  return pimpl_->screenshotter->GetPlayground().GetRuntimeStageBackend();
 }
 
 }  // namespace impeller

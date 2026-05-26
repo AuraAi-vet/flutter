@@ -6,6 +6,8 @@
 #define FLUTTER_SHELL_PLATFORM_DARWIN_IOS_FRAMEWORK_SOURCE_FLUTTERENGINE_INTERNAL_H_
 
 #import "flutter/shell/platform/darwin/ios/framework/Headers/FlutterEngine.h"
+#import "flutter/shell/platform/darwin/ios/framework/Source/FlutterFMLTaskRunner+FML.h"
+#import "flutter/shell/platform/darwin/ios/framework/Source/FlutterFMLTaskRunner.h"
 
 #include "flutter/fml/memory/weak_ptr.h"
 #include "flutter/fml/task_runner.h"
@@ -28,16 +30,19 @@
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterTextInputPlugin.h"
 #import "flutter/shell/platform/darwin/ios/framework/Source/FlutterView.h"
 
+#import "flutter/shell/platform/darwin/ios/framework/Source/FlutterEngine+TaskRunners.h"
+
 NS_ASSUME_NONNULL_BEGIN
 
 @interface FlutterEngine () <FlutterViewEngineDelegate>
 
+// Indicates whether this engine has **ever** been manually registered to a scene.
+@property(nonatomic, assign) BOOL manuallyRegisteredToScene;
+
 - (void)updateViewportMetrics:(flutter::ViewportMetrics)viewportMetrics;
 - (void)dispatchPointerDataPacket:(std::unique_ptr<flutter::PointerDataPacket>)packet;
-
-- (fml::RefPtr<fml::TaskRunner>)platformTaskRunner;
-- (fml::RefPtr<fml::TaskRunner>)uiTaskRunner;
-- (fml::RefPtr<fml::TaskRunner>)rasterTaskRunner;
+- (BOOL)platformViewShouldAcceptTouchAtTouchBeganLocation:(flutter::PointData)location
+                                                   viewId:(uint64_t)viewId;
 
 - (void)installFirstFrameCallback:(void (^)(void))block;
 - (void)enableSemantics:(BOOL)enabled withFlags:(int64_t)flags;
@@ -106,6 +111,25 @@ NS_ASSUME_NONNULL_BEGIN
 + (nullable FlutterEngine*)engineForIdentifier:(int64_t)identifier;
 
 - (void)addSceneLifeCycleDelegate:(NSObject<FlutterSceneLifeCycleDelegate>*)delegate;
+
+/*
+ * Performs AppDelegate callback provided through the `FlutterImplicitEngineDelegate` protocol to
+ * inform apps that the implicit `FlutterEngine` has initialized.
+ */
+- (BOOL)performImplicitEngineCallback;
+
+/*
+ * Creates a `FlutterEngineApplicationRegistrar` that can be used to access application-level
+ * services, such as the engine's `FlutterBinaryMessenger` or `FlutterTextureRegistry`.
+ */
+- (NSObject<FlutterApplicationRegistrar>*)registrarForApplication:(NSString*)key;
+
+- (void)sendDeepLinkToFramework:(NSURL*)url completionHandler:(void (^)(BOOL success))completion;
+
+- (void)onStatusBarTap;
+@end
+
+@interface FlutterImplicitEngineBridgeImpl : NSObject <FlutterImplicitEngineBridge>
 
 @end
 

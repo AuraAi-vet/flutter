@@ -28,10 +28,10 @@ const _kFontManifest = 'FontManifest.json';
 
 class DevFSConfig {
   /// Should DevFS assume that symlink targets are stable?
-  var cacheSymlinks = false;
+  bool cacheSymlinks = false;
 
   /// Should DevFS assume that there are no symlinks to directories?
-  var noDirectorySymlinks = false;
+  bool noDirectorySymlinks = false;
 }
 
 DevFSConfig? get devFSConfig => context.get<DevFSConfig>();
@@ -489,12 +489,12 @@ class DevFS {
   final shaderPathsToEvict = <String>{};
 
   // A flag to indicate whether we have called `setAssetDirectory` on the target device.
-  var hasSetAssetDirectory = false;
+  bool hasSetAssetDirectory = false;
 
   /// Whether the font manifest was uploaded during [update].
-  var didUpdateFontManifest = false;
+  bool didUpdateFontManifest = false;
 
-  var sources = <Uri>[];
+  List<Uri> sources = <Uri>[];
   DateTime? lastCompiled;
   DateTime? _previousCompiled;
   PackageConfig? lastPackageConfig;
@@ -651,7 +651,22 @@ class DevFS {
         final AssetKind? kind = bundle.entries[archivePath]?.kind;
         switch (kind) {
           case AssetKind.shader:
-            final Future<DevFSContent?> pending = shaderCompiler.recompileShader(entry.content);
+            final Future<DevFSContent?> pending = (() async {
+              DevFSContent content = entry.content;
+              if (entry.transformers.isNotEmpty) {
+                final DevFSContent? transformed = await _assetTransformer.retransformAsset(
+                  inputAssetKey: archivePath,
+                  inputAssetContent: content,
+                  transformerEntries: entry.transformers,
+                  workingDirectory: rootDirectory.path,
+                );
+                if (transformed == null) {
+                  return null;
+                }
+                content = transformed;
+              }
+              return shaderCompiler.recompileShader(content);
+            })();
             pendingAssetBuilds.add(pending);
             pending.then((DevFSContent? content) {
               if (content == null) {

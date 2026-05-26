@@ -15,9 +15,14 @@
 
 namespace impeller {
 
-LinearGradientContents::LinearGradientContents() = default;
+LinearGradientContents::LinearGradientContents(const Geometry* geometry)
+    : geometry_(geometry) {}
 
 LinearGradientContents::~LinearGradientContents() = default;
+
+const Geometry* LinearGradientContents::GetGeometry() const {
+  return geometry_;
+}
 
 void LinearGradientContents::SetEndPoints(Point start_point, Point end_point) {
   start_point_ = start_point;
@@ -311,7 +316,8 @@ bool LinearGradientContents::RenderSSBO(const ContentContext& renderer,
         frag_info.colors_length = colors.size();
         auto color_buffer = data_host_buffer.Emplace(
             colors.data(), colors.size() * sizeof(StopData),
-            data_host_buffer.GetMinimumUniformAlignment());
+            renderer.GetDeviceCapabilities()
+                .GetMinimumStorageBufferAlignment());
 
         pass.SetCommandLabel("LinearGradientSSBOFill");
 

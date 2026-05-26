@@ -3,16 +3,22 @@
 // found in the LICENSE file.
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'editable_text_tester.dart';
 import 'editable_text_utils.dart';
+import 'widgets_app_tester.dart';
+
+const Color _blue = Color(0xFF0000FF);
+const Color _grey = Color(0xFF888888);
+const Color _black = Color(0xFF000000);
 
 void main() {
-  const TextStyle textStyle = TextStyle();
-  const Color cursorColor = Color.fromARGB(0xFF, 0xFF, 0x00, 0x00);
+  const textStyle = TextStyle();
+  const cursorColor = Color.fromARGB(0xFF, 0xFF, 0x00, 0x00);
   late TextEditingController controller;
   late FocusNode focusNode;
 
@@ -29,13 +35,13 @@ void main() {
   testWidgets(
     'selection rects re-sent when refocused',
     (WidgetTester tester) async {
-      final List<List<SelectionRect>> log = <List<SelectionRect>>[];
+      final log = <List<SelectionRect>>[];
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.textInput, (
         MethodCall methodCall,
       ) async {
         if (methodCall.method == 'TextInput.setSelectionRects') {
-          final List<dynamic> args = methodCall.arguments as List<dynamic>;
-          final List<SelectionRect> selectionRects = <SelectionRect>[];
+          final args = methodCall.arguments as List<dynamic>;
+          final selectionRects = <SelectionRect>[];
           for (final dynamic rect in args) {
             selectionRects.add(
               SelectionRect(
@@ -54,7 +60,7 @@ void main() {
         return null;
       });
 
-      final ScrollController scrollController = ScrollController();
+      final scrollController = ScrollController();
       addTearDown(scrollController.dispose);
       controller.text = 'Text1';
 
@@ -79,9 +85,9 @@ void main() {
                     maxLines: null,
                     focusNode: focusNode,
                     cursorWidth: 0,
-                    style: Typography.material2018().black.titleMedium!,
-                    cursorColor: Colors.blue,
-                    backgroundCursorColor: Colors.grey,
+                    style: const TextStyle(),
+                    cursorColor: _blue,
+                    backgroundCursorColor: _grey,
                   ),
                 ),
               ),
@@ -90,7 +96,7 @@ void main() {
         );
       }
 
-      const List<SelectionRect> expectedRects = <SelectionRect>[
+      const expectedRects = <SelectionRect>[
         SelectionRect(position: 0, bounds: Rect.fromLTRB(0.0, 0.0, 14.0, 14.0)),
         SelectionRect(position: 1, bounds: Rect.fromLTRB(14.0, 0.0, 28.0, 14.0)),
         SelectionRect(position: 2, bounds: Rect.fromLTRB(28.0, 0.0, 42.0, 14.0)),
@@ -133,14 +139,14 @@ void main() {
       late SelectionChangedCause selectionCause;
 
       await tester.pumpWidget(
-        MaterialApp(
+        TestWidgetsApp(
           home: EditableText(
             controller: controller,
-            backgroundCursorColor: Colors.grey,
+            backgroundCursorColor: _grey,
             focusNode: focusNode,
             style: textStyle,
             cursorColor: cursorColor,
-            selectionControls: materialTextSelectionControls,
+            selectionControls: testTextSelectionHandleControls,
             onSelectionChanged: (TextSelection selection, SelectionChangedCause? cause) {
               if (cause != null) {
                 selectionCause = cause;
@@ -187,14 +193,14 @@ void main() {
       late SelectionChangedCause selectionCause;
 
       await tester.pumpWidget(
-        MaterialApp(
+        TestWidgetsApp(
           home: EditableText(
             controller: controller,
-            backgroundCursorColor: Colors.grey,
+            backgroundCursorColor: _grey,
             focusNode: focusNode,
             style: textStyle,
             cursorColor: cursorColor,
-            selectionControls: materialTextSelectionControls,
+            selectionControls: testTextSelectionHandleControls,
             onSelectionChanged: (TextSelection selection, SelectionChangedCause? cause) {
               if (cause != null) {
                 selectionCause = cause;
@@ -225,25 +231,19 @@ void main() {
       controller.text = 'Lorem ipsum dolor sit amet';
 
       await tester.pumpWidget(
-        MaterialApp(
+        TestWidgetsApp(
           home: EditableText(
             controller: controller,
-            backgroundCursorColor: Colors.grey,
+            backgroundCursorColor: _grey,
             focusNode: focusNode,
             style: textStyle,
             cursorColor: cursorColor,
-            selectionControls: materialTextSelectionControls,
+            selectionControls: testTextSelectionHandleControls,
           ),
         ),
       );
 
-      final List<dynamic> elementEntry = <dynamic>[
-        TextInput.scribbleClients.keys.first,
-        0.0,
-        0.0,
-        800.0,
-        600.0,
-      ];
+      final elementEntry = <dynamic>[TextInput.scribbleClients.keys.first, 0.0, 0.0, 800.0, 600.0];
 
       List<List<dynamic>> elements = await tester.testTextInput.scribbleRequestElementsInRect(
         const Rect.fromLTWH(0, 0, 1, 1),
@@ -258,15 +258,15 @@ void main() {
 
       // Widget is read only.
       await tester.pumpWidget(
-        MaterialApp(
+        TestWidgetsApp(
           home: EditableText(
             readOnly: true,
             controller: controller,
-            backgroundCursorColor: Colors.grey,
+            backgroundCursorColor: _grey,
             focusNode: focusNode,
             style: textStyle,
             cursorColor: cursorColor,
-            selectionControls: materialTextSelectionControls,
+            selectionControls: testTextSelectionHandleControls,
           ),
         ),
       );
@@ -278,24 +278,18 @@ void main() {
 
       // Widget is not touchable.
       await tester.pumpWidget(
-        MaterialApp(
+        TestWidgetsApp(
           home: Stack(
             children: <Widget>[
               EditableText(
                 controller: controller,
-                backgroundCursorColor: Colors.grey,
+                backgroundCursorColor: _grey,
                 focusNode: focusNode,
                 style: textStyle,
                 cursorColor: cursorColor,
-                selectionControls: materialTextSelectionControls,
+                selectionControls: testTextSelectionHandleControls,
               ),
-              Positioned(
-                left: 0,
-                top: 0,
-                right: 0,
-                bottom: 0,
-                child: Container(color: Colors.black),
-              ),
+              Positioned(left: 0, top: 0, right: 0, bottom: 0, child: Container(color: _black)),
             ],
           ),
         ),
@@ -308,14 +302,14 @@ void main() {
 
       // Widget has scribble disabled.
       await tester.pumpWidget(
-        MaterialApp(
+        TestWidgetsApp(
           home: EditableText(
             controller: controller,
-            backgroundCursorColor: Colors.grey,
+            backgroundCursorColor: _grey,
             focusNode: focusNode,
             style: textStyle,
             cursorColor: cursorColor,
-            selectionControls: materialTextSelectionControls,
+            selectionControls: testTextSelectionHandleControls,
             stylusHandwritingEnabled: false,
           ),
         ),
@@ -339,14 +333,14 @@ void main() {
       controller.text = 'Lorem ipsum dolor sit amet';
 
       await tester.pumpWidget(
-        MaterialApp(
+        TestWidgetsApp(
           home: EditableText(
             controller: controller,
-            backgroundCursorColor: Colors.grey,
+            backgroundCursorColor: _grey,
             focusNode: focusNode,
             style: textStyle,
             cursorColor: cursorColor,
-            selectionControls: materialTextSelectionControls,
+            selectionControls: testTextSelectionHandleControls,
           ),
         ),
       );
@@ -364,7 +358,7 @@ void main() {
       await tester.testTextInput.scribbleInsertPlaceholder();
       await tester.pumpAndSettle();
 
-      TextSpan textSpan = findRenderEditable(tester).text! as TextSpan;
+      var textSpan = findRenderEditable(tester).text! as TextSpan;
       expect(textSpan.children!.length, 3);
       expect((textSpan.children![0] as TextSpan).text, 'Lorem');
       expect(textSpan.children![1] is WidgetSpan, true);
@@ -379,14 +373,14 @@ void main() {
 
       // Widget has scribble disabled.
       await tester.pumpWidget(
-        MaterialApp(
+        TestWidgetsApp(
           home: EditableText(
             controller: controller,
-            backgroundCursorColor: Colors.grey,
+            backgroundCursorColor: _grey,
             focusNode: focusNode,
             style: textStyle,
             cursorColor: cursorColor,
-            selectionControls: materialTextSelectionControls,
+            selectionControls: testTextSelectionHandleControls,
             stylusHandwritingEnabled: false,
           ),
         ),
@@ -422,14 +416,14 @@ void main() {
       controller.text = 'Lorem ipsum dolor sit amet';
 
       await tester.pumpWidget(
-        MaterialApp(
+        TestWidgetsApp(
           home: EditableText(
             controller: controller,
-            backgroundCursorColor: Colors.grey,
+            backgroundCursorColor: _grey,
             focusNode: focusNode,
             style: textStyle,
             cursorColor: cursorColor,
-            selectionControls: materialTextSelectionControls,
+            selectionControls: testTextSelectionHandleControls,
             maxLines: 2,
           ),
         ),
@@ -448,7 +442,7 @@ void main() {
       await tester.testTextInput.scribbleInsertPlaceholder();
       await tester.pumpAndSettle();
 
-      TextSpan textSpan = findRenderEditable(tester).text! as TextSpan;
+      var textSpan = findRenderEditable(tester).text! as TextSpan;
       expect(textSpan.children!.length, 4);
       expect((textSpan.children![0] as TextSpan).text, 'Lorem');
       expect(textSpan.children![1] is WidgetSpan, true);
@@ -464,14 +458,14 @@ void main() {
 
       // Widget has scribble disabled.
       await tester.pumpWidget(
-        MaterialApp(
+        TestWidgetsApp(
           home: EditableText(
             controller: controller,
-            backgroundCursorColor: Colors.grey,
+            backgroundCursorColor: _grey,
             focusNode: focusNode,
             style: textStyle,
             cursorColor: cursorColor,
-            selectionControls: materialTextSelectionControls,
+            selectionControls: testTextSelectionHandleControls,
             maxLines: 2,
             stylusHandwritingEnabled: false,
           ),
@@ -509,13 +503,13 @@ void main() {
       // Ensure selection rects are sent on iPhone (using SE 3rd gen size)
       tester.view.physicalSize = const Size(750.0, 1334.0);
 
-      final List<List<SelectionRect>> log = <List<SelectionRect>>[];
+      final log = <List<SelectionRect>>[];
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.textInput, (
         MethodCall methodCall,
       ) {
         if (methodCall.method == 'TextInput.setSelectionRects') {
-          final List<dynamic> args = methodCall.arguments as List<dynamic>;
-          final List<SelectionRect> selectionRects = <SelectionRect>[];
+          final args = methodCall.arguments as List<dynamic>;
+          final selectionRects = <SelectionRect>[];
           for (final dynamic rect in args) {
             selectionRects.add(
               SelectionRect(
@@ -534,7 +528,7 @@ void main() {
         return null;
       });
 
-      final ScrollController scrollController = ScrollController();
+      final scrollController = ScrollController();
       addTearDown(scrollController.dispose);
       controller.text = 'Text1';
 
@@ -559,9 +553,9 @@ void main() {
                     maxLines: null,
                     focusNode: focusNode,
                     cursorWidth: 0,
-                    style: Typography.material2018().black.titleMedium!,
-                    cursorColor: Colors.blue,
-                    backgroundCursorColor: Colors.grey,
+                    style: const TextStyle(),
+                    cursorColor: _blue,
+                    backgroundCursorColor: _grey,
                   ),
                 ),
               ),
@@ -663,7 +657,7 @@ void main() {
   testWidgets(
     'selection rects are not sent if stylusHandwritingEnabled is false',
     (WidgetTester tester) async {
-      final List<MethodCall> log = <MethodCall>[];
+      final log = <MethodCall>[];
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.textInput, (
         MethodCall methodCall,
       ) async {
@@ -685,9 +679,9 @@ void main() {
                   key: ValueKey<String>(controller.text),
                   controller: controller,
                   focusNode: focusNode,
-                  style: Typography.material2018().black.titleMedium!,
-                  cursorColor: Colors.blue,
-                  backgroundCursorColor: Colors.grey,
+                  style: const TextStyle(),
+                  cursorColor: _blue,
+                  backgroundCursorColor: _grey,
                   stylusHandwritingEnabled: false,
                 ),
               ],
@@ -709,13 +703,13 @@ void main() {
   testWidgets(
     'selection rects sent even when character corners are outside of paintBounds',
     (WidgetTester tester) async {
-      final List<List<SelectionRect>> log = <List<SelectionRect>>[];
+      final log = <List<SelectionRect>>[];
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.textInput, (
         MethodCall methodCall,
       ) {
         if (methodCall.method == 'TextInput.setSelectionRects') {
-          final List<dynamic> args = methodCall.arguments as List<dynamic>;
-          final List<SelectionRect> selectionRects = <SelectionRect>[];
+          final args = methodCall.arguments as List<dynamic>;
+          final selectionRects = <SelectionRect>[];
           for (final dynamic rect in args) {
             selectionRects.add(
               SelectionRect(
@@ -734,7 +728,7 @@ void main() {
         return null;
       });
 
-      final ScrollController scrollController = ScrollController();
+      final scrollController = ScrollController();
       addTearDown(scrollController.dispose);
       controller.text = 'Text1';
 
@@ -762,9 +756,9 @@ void main() {
                     focusNode: focusNode,
                     cursorWidth: 0,
                     key: editableTextKey,
-                    style: Typography.material2018().black.titleMedium!,
-                    cursorColor: Colors.blue,
-                    backgroundCursorColor: Colors.grey,
+                    style: const TextStyle(),
+                    cursorColor: _blue,
+                    backgroundCursorColor: _grey,
                   ),
                 ),
               ),
@@ -779,7 +773,7 @@ void main() {
 
       // Scroll so that the top of each character is above the top of the renderEditable
       // and the bottom of each character is below the bottom of the renderEditable.
-      final ViewportOffset offset = ViewportOffset.fixed(0.5);
+      final offset = ViewportOffset.fixed(0.5);
       addTearDown(offset.dispose);
       editableTextKey.currentState!.renderEditable.offset = offset;
 
@@ -808,25 +802,23 @@ void main() {
       final GlobalKey<EditableTextState> editableTextKey = GlobalKey();
 
       await tester.pumpWidget(
-        MaterialApp(
+        TestWidgetsApp(
           home: EditableText(
             key: editableTextKey,
             controller: controller,
-            backgroundCursorColor: Colors.grey,
+            backgroundCursorColor: _grey,
             focusNode: focusNode,
             style: textStyle,
             cursorColor: cursorColor,
-            selectionControls: materialTextSelectionHandleControls,
+            selectionControls: testTextSelectionHandleControls,
             contextMenuBuilder: (BuildContext context, EditableTextState editableTextState) {
-              return AdaptiveTextSelectionToolbar.editableText(
-                editableTextState: editableTextState,
-              );
+              return const SizedBox(key: Key('test-toolbar'));
             },
           ),
         ),
       );
 
-      expect(find.byType(AdaptiveTextSelectionToolbar), findsNothing);
+      expect(find.byKey(const Key('test-toolbar')), findsNothing);
 
       await tester.showKeyboard(find.byType(EditableText));
 
@@ -839,21 +831,21 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(AdaptiveTextSelectionToolbar), findsNothing);
+      expect(find.byKey(const Key('test-toolbar')), findsNothing);
 
       expect(editableTextKey.currentState!.showToolbar(), isTrue);
       await tester.pumpAndSettle();
 
-      expect(find.byType(AdaptiveTextSelectionToolbar), findsOneWidget);
+      expect(find.byKey(const Key('test-toolbar')), findsOneWidget);
 
       expect(editableTextKey.currentState!.showToolbar(), isFalse);
       await tester.pump();
 
-      expect(find.byType(AdaptiveTextSelectionToolbar), findsOneWidget);
+      expect(find.byKey(const Key('test-toolbar')), findsOneWidget);
 
       await tester.pumpAndSettle();
 
-      expect(find.byType(AdaptiveTextSelectionToolbar), findsOneWidget);
+      expect(find.byKey(const Key('test-toolbar')), findsOneWidget);
 
       await tester.testTextInput.finishScribbleInteraction();
     },

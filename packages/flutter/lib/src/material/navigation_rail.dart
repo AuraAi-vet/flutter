@@ -112,6 +112,7 @@ class NavigationRail extends StatefulWidget {
     this.leadingAtTop = true,
     this.trailingAtBottom = false,
     this.scrollable = false,
+    this.mainAxisAlignment,
   }) : assert(selectedIndex == null || (0 <= selectedIndex && selectedIndex < destinations.length)),
        assert(elevation == null || elevation > 0),
        assert(minWidth == null || minWidth > 0),
@@ -351,6 +352,24 @@ class NavigationRail extends StatefulWidget {
   /// respectively.
   final bool scrollable;
 
+  /// How the [destinations] should be placed along the vertical axis.
+  ///
+  /// When there is extra vertical space in the [NavigationRail], this
+  /// property controls the alignment and spacing of the items. For example,
+  /// setting this to [MainAxisAlignment.spaceEvenly] will distribute the
+  /// destinations equally along the available vertical space.
+  ///
+  /// When this property is not null, [groupAlignment] is ignored.
+  ///
+  /// If null, the layout behaves as if [MainAxisAlignment.start] was
+  /// specified.
+  ///
+  /// See also:
+  ///
+  ///  * [Column.mainAxisAlignment], which describes the different values and
+  ///    their effects on the layout.
+  final MainAxisAlignment? mainAxisAlignment;
+
   /// Returns the animation that controls the [NavigationRail.extended] state.
   ///
   /// This can be used to synchronize animations in the [leading] or [trailing]
@@ -476,10 +495,11 @@ class _NavigationRailState extends State<NavigationRail> with TickerProviderStat
             opacity: unselectedIconTheme.opacity ?? defaults.unselectedIconTheme!.opacity,
           );
 
-    final bool isRTLDirection = Directionality.of(context) == TextDirection.rtl;
+    final isRTLDirection = Directionality.of(context) == TextDirection.rtl;
 
     Widget mainGroup = Column(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: widget.mainAxisAlignment != null ? MainAxisSize.max : MainAxisSize.min,
+      mainAxisAlignment: widget.mainAxisAlignment ?? MainAxisAlignment.start,
       children: <Widget>[
         if (!widget.leadingAtTop && widget.leading != null) ...<Widget>[
           widget.leading!,
@@ -690,7 +710,7 @@ class _RailDestinationState extends State<_RailDestination> {
       textDirection,
     );
     Offset indicatorOffset;
-    bool applyXOffset = false;
+    var applyXOffset = false;
 
     final Widget themedIcon = IconTheme(
       data: widget.disabled
@@ -806,9 +826,7 @@ class _RailDestinationState extends State<_RailDestination> {
           _verticalDestinationPaddingWithLabel,
           appearingAnimationValue,
         )!;
-        final Interval interval = widget.selected
-            ? const Interval(0.25, 0.75)
-            : const Interval(0.75, 1.0);
+        final interval = widget.selected ? const Interval(0.25, 0.75) : const Interval(0.75, 1.0);
         final Animation<double> labelFadeAnimation = widget.destinationAnimation.drive(
           CurveTween(curve: interval),
         );
@@ -1040,7 +1058,7 @@ class _AddIndicator extends StatelessWidget {
         animation: indicatorAnimation,
         height: _kCircularIndicatorDiameter,
         width: _kCircularIndicatorDiameter,
-        borderRadius: BorderRadius.circular(_kCircularIndicatorDiameter / 2),
+        borderRadius: const BorderRadius.all(Radius.circular(_kCircularIndicatorDiameter / 2)),
         color: indicatorColor,
       );
     } else {

@@ -10,28 +10,30 @@
 #include <iostream>
 #include <vector>
 
-#include "flutter/third_party/abseil-cpp/absl/container/btree_map.h"
-#include "flutter/third_party/abseil-cpp/absl/container/flat_hash_set.h"
-#include "flutter/third_party/abseil-cpp/absl/log/log.h"
-#include "flutter/third_party/abseil-cpp/absl/status/statusor.h"
 #include "flutter/third_party/re2/re2/re2.h"
 #include "flutter/tools/licenses_cpp/src/comments.h"
 #include "flutter/tools/licenses_cpp/src/data.h"
 #include "flutter/tools/licenses_cpp/src/deps_parser.h"
 #include "flutter/tools/licenses_cpp/src/filter.h"
 #include "flutter/tools/licenses_cpp/src/mmap_file.h"
+#include "third_party/abseil-cpp/absl/container/btree_map.h"
+#include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
+#include "third_party/abseil-cpp/absl/log/log.h"
+#include "third_party/abseil-cpp/absl/log/vlog_is_on.h"
+#include "third_party/abseil-cpp/absl/status/statusor.h"
+#include "third_party/abseil-cpp/absl/strings/str_cat.h"
 
 namespace fs = std::filesystem;
 
 const char* LicenseChecker::kHeaderLicenseRegex = "(?i)(license|copyright)";
 
 namespace {
-// TODO(): Move this into the data directory.
+// TODO(gaaclarke): Move this into the data directory.
 const std::array<std::string_view, 9> kLicenseFileNames = {
     "LICENSE", "LICENSE.TXT", "LICENSE.txt",  "LICENSE.md", "LICENSE.MIT",
     "COPYING", "License.txt", "docs/FTL.TXT", "README.ijg"};
 
-// TODO(): Move this into the data directory
+// TODO(gaaclarke): Move this into the data directory
 //  These are directories that when they are found in third_party directories
 //  are ignored as package names.
 const std::array<std::string_view, 2> kThirdPartyIgnore = {"pkg",
@@ -159,9 +161,13 @@ std::string GetDirFilename(const fs::path& working_dir) {
 
 Package GetPackage(const Data& data,
                    const fs::path& working_dir,
-                   const fs::path& relative_path) {
+                   const fs::path& relative_path,
+                   const LicenseChecker::Flags& flags) {
+  std::string root_package_name = flags.root_package_name.has_value()
+                                      ? flags.root_package_name.value()
+                                      : GetDirFilename(working_dir);
   Package result = {
-      .name = GetDirFilename(working_dir),
+      .name = root_package_name,
       .license_file = FindLicense(data, working_dir, "."),
       .is_root_package = true,
   };
@@ -415,7 +421,7 @@ absl::Status ProcessFile(const fs::path& working_dir_path,
     return absl::OkStatus();
   }
 
-  Package package = GetPackage(data, working_dir_path, relative_path);
+  Package package = GetPackage(data, working_dir_path, relative_path, flags);
   if (package.license_file.has_value()) {
     auto [_, is_new_item] =
         seen_license_files->insert(package.license_file.value());
@@ -571,7 +577,8 @@ std::vector<absl::Status> LicenseChecker::Run(
               "secondary license path mixmatch at ", relative_path.string())));
         } else {
           fs::path full_path = data.secondary_dir / entry;
-          Package package = GetPackage(data, working_dir_path, relative_path);
+          Package package =
+              GetPackage(data, working_dir_path, relative_path, flags);
           absl::StatusOr<MMapFile> file = MMapFile::Make(full_path.string());
           if (file.ok()) {
             state.license_map.Add(

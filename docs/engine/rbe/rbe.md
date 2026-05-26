@@ -1,6 +1,5 @@
 # RBE for Flutter Engine Developers
 
-g
 ## Overview
 
 This is documentation on setting up RBE for building the Flutter engine. It is
@@ -9,21 +8,21 @@ including cloudtop instances.
 
 ## Getting started
 
-The first step is to add an entry to the `.gclient` file. The entry to add is
-`"use_rbe": True` in the `custom_vars` section. It should look like this:
+The first step is ensure RBE is enabled in `.gclient` file. Add the entry
+`"use_rbe": True` in the `custom_vars` section if it is not already present.
+
+> **TIP**: If your `.gclient` file was copied from `engine/scripts/rbe.gclient`,
+> the entry will already be present.
+
+`.gclient` should look like this:
 
 ```
 solutions = [
   {
-    "managed": False,
-    "name": "src/flutter",
-    "url": "git@github.com:zanderso/engine.git",
-    "custom_deps": {},
+    # ...
     "custom_vars": {
       "use_rbe": True,
     },
-    "deps_file": "DEPS",
-    "safesync_url": "",
   },
 ]
 ```
@@ -37,12 +36,6 @@ cipd auth-login
 ```
 
 After authentication successfully, run `gclient sync -D`.
-
-## Running an RBE build
-
-In the engine repo, all RBE builds must be initiated through the `et` tool whose
-entrypoint is the script `//flutter/bin/et`. This is so that the local RBE
-proxy is correctly initialized and shut down around invocations of `ninja`.
 
 ### gcloud
 
@@ -59,13 +52,24 @@ return `/usr/bin/python3`.
 gcloud init --project flutter-rbe-prod
 ```
 
-If you get an error from `bootstrap` about not being able to find `Application
-Default Credentials` you may need to execute the following to create the default
-credentials:
+Execute the following to create application default credentials:
 
 ```sh
 gcloud auth application-default login
 ```
+
+Already using another cloud project or haven't refreshed in a while? Try:
+
+```sh
+gcloud config set project flutter-rbe-prod
+gcloud auth application-default login
+```
+
+## Running an RBE build
+
+In the engine repo, all RBE builds must be initiated through the `et` tool whose
+entrypoint is the script `//flutter/bin/et`. This is so that the local RBE
+proxy is correctly initialized and shut down around invocations of `ninja`.
 
 ### Listing builds
 
@@ -153,6 +157,18 @@ Check your `${HOME}/.config/gcloud/application_default_credentials.json` to see 
 gcloud auth application-default login
 ```
 
+### Too many open files
+
+For developers on a macOS device, if you get the following error while running
+`et build`:
+
+```shell
+ninja: fatal: pipe: Too many open files
+```
+
+Increase the maximum number of open files on your machine with the instructions
+[here](https://goto.google.com/building-chrome-mac#configure-your-mac-for-remote-execution).
+
 ### Slow builds
 
 RBE builds can be slow for a few different reasons. The most common reason is
@@ -176,7 +192,7 @@ to various background and monitoring processes running. See
 [here](https://buganizer.corp.google.com/issues/324404733#comment16) for how to
 disable some of them. You should also disable Spotlight scanning of the engine
 source directory as described
-[here](go/building-chrome-mac#add-the-source-directory-to-the-spotlight-privacy-list).
+[here](https://goto.google.com/building-chrome-mac#add-the-source-directory-to-the-spotlight-privacy-list).
 
 When RBE builds are slow, non-RBE builds may be faster, especially incremental
 builds. You can disable remote builds without invalidating your existing build
@@ -228,11 +244,11 @@ This can be debugged by doing a local build with RBE turned off.
   [this GitHub repository](https://github.com/bazelbuild/reclient). The tools are not
   well-documented, so the source code is the source of truth for the command
   line flags that they accept, for example.
-* Internal-facing RBE migration guide is [here](go/reclient-migration-guide).
+* Internal-facing RBE migration guide is [here](https://goto.google.com/reclient-migration-guide).
   (Mostly focused on Chrome and Android, so not all parts are relevant to
   Flutter.)
 * The version of RBE for local development is set in the DEPS file
-  [here](https://github.com/flutter/engine/blob/8578edf9c9393471ca9eab18e9154f0e6066dcb6/DEPS#L53).
+  [here](https://github.com/flutter/flutter/blob/e3852df571a4e313bdab85777ac13affcd089d8c/DEPS#L48).
   It needs to be manually rolled occasionally.
 * The version of RBE used by CI is set in a LUCI recipe
   [here](https://flutter.googlesource.com/recipes/+/be12675150183af68223f5fbc6e0f888a1139e79/recipe_modules/rbe/api.py#16).

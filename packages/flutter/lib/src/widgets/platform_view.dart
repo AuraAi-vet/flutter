@@ -317,6 +317,7 @@ class UiKitView extends _DarwinView {
   const UiKitView({
     super.key,
     required super.viewType,
+    this.gestureBlockingPolicy = UiKitViewGestureBlockingPolicy.fallbackToPluginDefault,
     super.onPlatformViewCreated,
     super.hitTestBehavior = PlatformViewHitTestBehavior.opaque,
     super.layoutDirection,
@@ -324,6 +325,9 @@ class UiKitView extends _DarwinView {
     super.creationParamsCodec,
     super.gestureRecognizers,
   }) : assert(creationParams == null || creationParamsCodec != null);
+
+  /// The gesture blocking policy that controls touch and gesture blocking behaviors.
+  final UiKitViewGestureBlockingPolicy gestureBlockingPolicy;
 
   @override
   State<UiKitView> createState() => _UiKitViewState();
@@ -741,7 +745,7 @@ class _AndroidViewState extends State<AndroidView> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     final TextDirection newLayoutDirection = _findLayoutDirection();
-    final bool didChangeLayoutDirection = _layoutDirection != newLayoutDirection;
+    final didChangeLayoutDirection = _layoutDirection != newLayoutDirection;
     _layoutDirection = newLayoutDirection;
 
     _initializeOnce();
@@ -757,7 +761,7 @@ class _AndroidViewState extends State<AndroidView> {
     super.didUpdateWidget(oldWidget);
 
     final TextDirection newLayoutDirection = _findLayoutDirection();
-    final bool didChangeLayoutDirection = _layoutDirection != newLayoutDirection;
+    final didChangeLayoutDirection = _layoutDirection != newLayoutDirection;
     _layoutDirection = newLayoutDirection;
 
     if (widget.viewType != oldWidget.viewType) {
@@ -806,7 +810,7 @@ class _AndroidViewState extends State<AndroidView> {
       return;
     }
     if (!isFocused) {
-      _controller.clearFocus().catchError((dynamic e) {
+      _controller.clearFocus().catchError((Object e, StackTrace stack) {
         if (e is MissingPluginException) {
           // We land the framework part of Android platform views keyboard
           // support before the engine part. There will be a commit range where
@@ -815,6 +819,15 @@ class _AndroidViewState extends State<AndroidView> {
           // framework I'll remove this.
           // TODO(amirh): remove this once the engine's clearFocus is rolled.
           return;
+        } else {
+          FlutterError.reportError(
+            FlutterErrorDetails(
+              exception: e,
+              stack: stack,
+              library: 'widgets library',
+              context: ErrorDescription('while clearing the platform view focus'),
+            ),
+          );
         }
       });
       return;
@@ -823,7 +836,7 @@ class _AndroidViewState extends State<AndroidView> {
         .invokeMethod<void>('TextInput.setPlatformViewClient', <String, dynamic>{
           'platformViewId': _id,
         })
-        .catchError((dynamic e) {
+        .catchError((Object e, StackTrace stack) {
           if (e is MissingPluginException) {
             // We land the framework part of Android platform views keyboard
             // support before the engine part. There will be a commit range where
@@ -832,6 +845,15 @@ class _AndroidViewState extends State<AndroidView> {
             // rolled to the framework I'll remove this.
             // TODO(amirh): remove this once the engine's clearFocus is rolled.
             return;
+          } else {
+            FlutterError.reportError(
+              FlutterErrorDetails(
+                exception: e,
+                stack: stack,
+                library: 'widgets library',
+                context: ErrorDescription('while setting the platform view client'),
+              ),
+            );
           }
         });
   }
@@ -881,7 +903,7 @@ abstract class _DarwinViewState<
   void didChangeDependencies() {
     super.didChangeDependencies();
     final TextDirection newLayoutDirection = _findLayoutDirection();
-    final bool didChangeLayoutDirection = _layoutDirection != newLayoutDirection;
+    final didChangeLayoutDirection = _layoutDirection != newLayoutDirection;
     _layoutDirection = newLayoutDirection;
 
     _initializeOnce();
@@ -897,7 +919,7 @@ abstract class _DarwinViewState<
     super.didUpdateWidget(oldWidget);
 
     final TextDirection newLayoutDirection = _findLayoutDirection();
-    final bool didChangeLayoutDirection = _layoutDirection != newLayoutDirection;
+    final didChangeLayoutDirection = _layoutDirection != newLayoutDirection;
     _layoutDirection = newLayoutDirection;
 
     if (widget.viewType != oldWidget.viewType) {
@@ -929,17 +951,28 @@ abstract class _DarwinViewState<
   }
 
   Future<void> _createNewUiKitView() async {
-    final int id = platformViewsRegistry.getNextPlatformViewId();
-    final ControllerT controller = await createNewViewController(id);
-    if (!mounted) {
-      controller.dispose();
-      return;
+    try {
+      final int id = platformViewsRegistry.getNextPlatformViewId();
+      final ControllerT controller = await createNewViewController(id);
+      if (!mounted) {
+        controller.dispose();
+        return;
+      }
+      widget.onPlatformViewCreated?.call(id);
+      setState(() {
+        _controller = controller;
+        focusNode = FocusNode(debugLabel: 'UiKitView(id: $id)');
+      });
+    } catch (error, stack) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+          library: 'widgets',
+          context: ErrorDescription('while creating a Darwin platform view'),
+        ),
+      );
     }
-    widget.onPlatformViewCreated?.call(id);
-    setState(() {
-      _controller = controller;
-      focusNode = FocusNode(debugLabel: 'UiKitView(id: $id)');
-    });
   }
 
   Future<ControllerT> createNewViewController(int id);
@@ -951,10 +984,23 @@ abstract class _DarwinViewState<
       // cancel the focus on the previously focused platform view.
       return;
     }
-    SystemChannels.textInput.invokeMethod<void>(
-      'TextInput.setPlatformViewClient',
-      <String, dynamic>{'platformViewId': controller.id},
-    );
+    SystemChannels.textInput
+        .invokeMethod<void>('TextInput.setPlatformViewClient', <String, dynamic>{
+          'platformViewId': controller.id,
+        })
+        .then(
+          (_) {},
+          onError: (Object error, StackTrace stack) {
+            FlutterError.reportError(
+              FlutterErrorDetails(
+                exception: error,
+                stack: stack,
+                library: 'widgets library',
+                context: ErrorDescription('while setting the platform view client'),
+              ),
+            );
+          },
+        );
   }
 }
 
@@ -965,6 +1011,7 @@ class _UiKitViewState
     return PlatformViewsService.initUiKitView(
       id: id,
       viewType: widget.viewType,
+      gestureBlockingPolicy: widget.gestureBlockingPolicy,
       layoutDirection: _layoutDirection!,
       creationParams: widget.creationParams,
       creationParamsCodec: widget.creationParamsCodec,
@@ -1289,10 +1336,20 @@ class _PlatformViewLinkState extends State<PlatformViewLink> {
     if (!isFocused) {
       _controller?.clearFocus();
     }
-    SystemChannels.textInput.invokeMethod<void>(
-      'TextInput.setPlatformViewClient',
-      <String, dynamic>{'platformViewId': _id},
-    );
+    SystemChannels.textInput
+        .invokeMethod<void>('TextInput.setPlatformViewClient', <String, dynamic>{
+          'platformViewId': _id,
+        })
+        .catchError((Object error, StackTrace stack) {
+          FlutterError.reportError(
+            FlutterErrorDetails(
+              exception: error,
+              stack: stack,
+              library: 'widget library',
+              context: ErrorDescription('while handling framework focus changed on platform view'),
+            ),
+          );
+        });
   }
 
   void _handlePlatformFocusChanged(bool isFocused) {
@@ -1503,10 +1560,10 @@ class _TextureBasedAndroidViewSurface extends PlatformViewSurface {
 
   @override
   RenderObject createRenderObject(BuildContext context) {
-    final AndroidViewController viewController = controller as AndroidViewController;
+    final viewController = controller as AndroidViewController;
     // Use GL texture based composition.
     // App should use GL texture unless they require to embed a SurfaceView.
-    final RenderAndroidView renderBox = RenderAndroidView(
+    final renderBox = RenderAndroidView(
       viewController: viewController,
       gestureRecognizers: gestureRecognizers,
       hitTestBehavior: hitTestBehavior,
@@ -1525,9 +1582,8 @@ class _PlatformLayerBasedAndroidViewSurface extends PlatformViewSurface {
 
   @override
   RenderObject createRenderObject(BuildContext context) {
-    final AndroidViewController viewController = controller as AndroidViewController;
-    final PlatformViewRenderBox renderBox =
-        super.createRenderObject(context) as PlatformViewRenderBox;
+    final viewController = controller as AndroidViewController;
+    final renderBox = super.createRenderObject(context) as PlatformViewRenderBox;
     viewController.pointTransformer = (Offset position) => renderBox.globalToLocal(position);
     return renderBox;
   }

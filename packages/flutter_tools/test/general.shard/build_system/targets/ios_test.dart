@@ -11,11 +11,13 @@ import 'package:flutter_tools/src/base/file_system.dart';
 import 'package:flutter_tools/src/base/io.dart';
 import 'package:flutter_tools/src/base/logger.dart';
 import 'package:flutter_tools/src/base/platform.dart';
+import 'package:flutter_tools/src/base/version.dart';
 import 'package:flutter_tools/src/build_info.dart';
 import 'package:flutter_tools/src/build_system/build_system.dart';
 import 'package:flutter_tools/src/build_system/targets/ios.dart';
+import 'package:flutter_tools/src/globals.dart' as globals;
 import 'package:flutter_tools/src/ios/xcodeproj.dart';
-import 'package:flutter_tools/src/reporting/reporting.dart';
+import 'package:flutter_tools/src/project.dart';
 import 'package:test/fake.dart';
 import 'package:unified_analytics/unified_analytics.dart';
 
@@ -48,13 +50,18 @@ const _kSharedConfig = <String>[
   'path/to/iPhoneOS.sdk',
 ];
 
+FakeCommand createPlutilFakeCommand(File infoPlist) {
+  return FakeCommand(
+    command: <String>['plutil', '-replace', 'MinimumOSVersion', '-string', '13.0', infoPlist.path],
+  );
+}
+
 void main() {
   late Environment environment;
   late MemoryFileSystem fileSystem;
   late FakeProcessManager processManager;
   late Artifacts artifacts;
   late BufferLogger logger;
-  late TestUsage usage;
   late FakeAnalytics fakeAnalytics;
 
   setUp(() {
@@ -62,7 +69,6 @@ void main() {
     processManager = FakeProcessManager.empty();
     logger = BufferLogger.test();
     artifacts = Artifacts.test();
-    usage = TestUsage();
     fakeAnalytics = getInitializedFakeAnalyticsInstance(
       fs: fileSystem,
       fakeFlutterVersion: FakeFlutterVersion(),
@@ -129,6 +135,9 @@ void main() {
           command: <String>['xattr', '-r', '-d', 'com.apple.FinderInfo', appFrameworkPath],
         ),
         FakeCommand(
+          command: <String>['xattr', '-r', '-d', 'com.apple.provenance', appFrameworkPath],
+        ),
+        FakeCommand(
           command: <String>[
             'codesign',
             '--force',
@@ -181,6 +190,9 @@ void main() {
           command: <String>['xattr', '-r', '-d', 'com.apple.FinderInfo', appFrameworkPath],
         ),
         FakeCommand(
+          command: <String>['xattr', '-r', '-d', 'com.apple.provenance', appFrameworkPath],
+        ),
+        FakeCommand(
           command: <String>[
             'codesign',
             '--force',
@@ -202,6 +214,87 @@ void main() {
     },
   );
 
+  testUsingContext(
+    'IosAssetBundle warns if plutil fails',
+    () async {
+      environment.defines[kBuildMode] = 'debug';
+      environment.defines[kCodesignIdentity] = 'ABC123';
+
+      fileSystem
+          .file(artifacts.getArtifactPath(Artifact.vmSnapshotData, mode: BuildMode.debug))
+          .createSync();
+      fileSystem
+          .file(artifacts.getArtifactPath(Artifact.isolateSnapshotData, mode: BuildMode.debug))
+          .createSync();
+      fileSystem.file('pubspec.yaml').writeAsStringSync('name: my_app');
+      writePackageConfigFiles(directory: fileSystem.currentDirectory, mainLibName: 'my_app');
+      fileSystem
+          .file(fileSystem.path.join('ios', 'Flutter', 'AppFrameworkInfo.plist'))
+          .createSync(recursive: true);
+      environment.buildDir.childFile('app.dill').createSync(recursive: true);
+      environment.buildDir.childFile('native_assets.json').createSync();
+      environment.buildDir
+          .childDirectory('App.framework')
+          .childFile('App')
+          .createSync(recursive: true);
+
+      final File infoPlist = environment.outputDir
+          .childDirectory('App.framework')
+          .childFile('Info.plist');
+      final File frameworkBinary = environment.outputDir
+          .childDirectory('App.framework')
+          .childFile('App');
+
+      processManager.addCommands(<FakeCommand>[
+        FakeCommand(
+          command: <String>[
+            'plutil',
+            '-replace',
+            'MinimumOSVersion',
+            '-string',
+            '13.0',
+            infoPlist.path,
+          ],
+          exitCode: 1,
+          stderr: 'plutil: error: invalid argument',
+        ),
+
+        FakeCommand(
+          command: <String>['xattr', '-r', '-d', 'com.apple.FinderInfo', frameworkBinary.path],
+        ),
+        FakeCommand(
+          command: <String>['xattr', '-r', '-d', 'com.apple.provenance', frameworkBinary.path],
+        ),
+        FakeCommand(
+          command: <String>[
+            'codesign',
+            '--force',
+            '--sign',
+            'ABC123',
+            '--timestamp=none',
+            frameworkBinary.path,
+          ],
+        ),
+      ]);
+
+      await const DebugIosApplicationBundle().build(environment);
+
+      final fakeStdio = globals.stdio as FakeStdio;
+      expect(
+        fakeStdio.buffer.toString(),
+        contains(
+          'warning: Failed to update MinimumOSVersion in ${infoPlist.path}. This may cause AppStore validation failures.',
+        ),
+      );
+      expect(processManager, hasNoRemainingExpectations);
+    },
+    overrides: <Type, Generator>{
+      FileSystem: () => fileSystem,
+      ProcessManager: () => processManager,
+      Platform: () => macPlatform,
+      Stdio: () => FakeStdio(),
+    },
+  );
   testUsingContext(
     'DebugIosApplicationBundle',
     () async {
@@ -233,13 +326,24 @@ void main() {
 
       final Directory frameworkDirectory = environment.outputDir.childDirectory('App.framework');
       final File frameworkDirectoryBinary = frameworkDirectory.childFile('App');
+      final File infoPlist = frameworkDirectory.childFile('Info.plist');
       processManager.addCommands(<FakeCommand>[
+        createPlutilFakeCommand(infoPlist),
         FakeCommand(
           command: <String>[
             'xattr',
             '-r',
             '-d',
             'com.apple.FinderInfo',
+            frameworkDirectoryBinary.path,
+          ],
+        ),
+        FakeCommand(
+          command: <String>[
+            'xattr',
+            '-r',
+            '-d',
+            'com.apple.provenance',
             frameworkDirectoryBinary.path,
           ],
         ),
@@ -323,13 +427,24 @@ void main() {
 
       final Directory frameworkDirectory = environment.outputDir.childDirectory('App.framework');
       final File frameworkDirectoryBinary = frameworkDirectory.childFile('App');
+      final File infoPlist = frameworkDirectory.childFile('Info.plist');
       processManager.addCommands(<FakeCommand>[
+        createPlutilFakeCommand(infoPlist),
         FakeCommand(
           command: <String>[
             'xattr',
             '-r',
             '-d',
             'com.apple.FinderInfo',
+            frameworkDirectoryBinary.path,
+          ],
+        ),
+        FakeCommand(
+          command: <String>[
+            'xattr',
+            '-r',
+            '-d',
+            'com.apple.provenance',
             frameworkDirectoryBinary.path,
           ],
         ),
@@ -410,6 +525,7 @@ void main() {
 
       final Directory frameworkDirectory = environment.outputDir.childDirectory('App.framework');
       final File frameworkDirectoryBinary = frameworkDirectory.childFile('App');
+      final File infoPlist = frameworkDirectory.childFile('Info.plist');
       processManager.addCommands(<FakeCommand>[
         const FakeCommand(
           command: <String>[
@@ -424,12 +540,22 @@ void main() {
             '--include=/./shader_lib',
           ],
         ),
+        createPlutilFakeCommand(infoPlist),
         FakeCommand(
           command: <String>[
             'xattr',
             '-r',
             '-d',
             'com.apple.FinderInfo',
+            frameworkDirectoryBinary.path,
+          ],
+        ),
+        FakeCommand(
+          command: <String>[
+            'xattr',
+            '-r',
+            '-d',
+            'com.apple.provenance',
             frameworkDirectoryBinary.path,
           ],
         ),
@@ -497,13 +623,24 @@ void main() {
 
       final Directory frameworkDirectory = environment.outputDir.childDirectory('App.framework');
       final File frameworkDirectoryBinary = frameworkDirectory.childFile('App');
+      final File infoPlist = frameworkDirectory.childFile('Info.plist');
       processManager.addCommands(<FakeCommand>[
+        createPlutilFakeCommand(infoPlist),
         FakeCommand(
           command: <String>[
             'xattr',
             '-r',
             '-d',
             'com.apple.FinderInfo',
+            frameworkDirectoryBinary.path,
+          ],
+        ),
+        FakeCommand(
+          command: <String>[
+            'xattr',
+            '-r',
+            '-d',
+            'com.apple.provenance',
             frameworkDirectoryBinary.path,
           ],
         ),
@@ -537,7 +674,6 @@ void main() {
       expect(assetDirectory.childFile('kernel_blob.bin'), isNot(exists));
       expect(assetDirectory.childFile('vm_snapshot_data'), isNot(exists));
       expect(assetDirectory.childFile('isolate_snapshot_data'), isNot(exists));
-      expect(usage.events, isEmpty);
       expect(fakeAnalytics.sentEvents, isEmpty);
     },
     overrides: <Type, Generator>{
@@ -565,13 +701,24 @@ void main() {
 
       final Directory frameworkDirectory = environment.outputDir.childDirectory('App.framework');
       final File frameworkDirectoryBinary = frameworkDirectory.childFile('App');
+      final File infoPlist = frameworkDirectory.childFile('Info.plist');
       processManager.addCommands(<FakeCommand>[
+        createPlutilFakeCommand(infoPlist),
         FakeCommand(
           command: <String>[
             'xattr',
             '-r',
             '-d',
             'com.apple.FinderInfo',
+            frameworkDirectoryBinary.path,
+          ],
+        ),
+        FakeCommand(
+          command: <String>[
+            'xattr',
+            '-r',
+            '-d',
+            'com.apple.provenance',
             frameworkDirectoryBinary.path,
           ],
         ),
@@ -1456,15 +1603,26 @@ flutter:
 }
 
 class FakeXcodeProjectInterpreter extends Fake implements XcodeProjectInterpreter {
-  FakeXcodeProjectInterpreter({this.isInstalled = true, this.schemes = const <String>['Runner']});
+  FakeXcodeProjectInterpreter({
+    this.isInstalled = true,
+    this.version,
+    this.schemes = const <String>['Runner'],
+  });
 
   @override
   final bool isInstalled;
 
+  @override
+  final Version? version;
+
   List<String> schemes;
 
   @override
-  Future<XcodeProjectInfo?> getInfo(String projectPath, {String? projectFilename}) async {
+  Future<XcodeProjectInfo?> getInfo(
+    XcodeBasedProject xcodeProject, {
+    required Directory buildDirectory,
+    String? projectFilename,
+  }) async {
     return XcodeProjectInfo(<String>[], <String>[], schemes, BufferLogger.test());
   }
 }

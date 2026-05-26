@@ -7,6 +7,7 @@
 library;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart';
 
 import 'basic.dart';
 import 'framework.dart';
@@ -87,6 +88,7 @@ class AnimatedList extends _AnimatedScrollView {
     super.shrinkWrap = false,
     super.padding,
     super.clipBehavior = Clip.hardEdge,
+    super.scrollCacheExtent,
   }) : assert(initialItemCount >= 0);
 
   /// A scrolling container that animates items with separators when they are inserted or removed.
@@ -163,6 +165,7 @@ class AnimatedList extends _AnimatedScrollView {
     super.shrinkWrap = false,
     super.padding,
     super.clipBehavior = Clip.hardEdge,
+    super.scrollCacheExtent,
   }) : assert(initialItemCount >= 0),
        super(
          initialItemCount: _computeChildCountWithSeparators(initialItemCount),
@@ -386,6 +389,7 @@ class AnimatedGrid extends _AnimatedScrollView {
     super.physics,
     super.padding,
     super.clipBehavior = Clip.hardEdge,
+    super.scrollCacheExtent,
   }) : assert(initialItemCount >= 0);
 
   /// {@template flutter.widgets.AnimatedGrid.gridDelegate}
@@ -543,6 +547,7 @@ abstract class _AnimatedScrollView extends StatefulWidget {
     this.shrinkWrap = false,
     this.padding,
     this.clipBehavior = Clip.hardEdge,
+    this.scrollCacheExtent,
   }) : assert(initialItemCount >= 0);
 
   /// {@template flutter.widgets.AnimatedScrollView.itemBuilder}
@@ -660,6 +665,9 @@ abstract class _AnimatedScrollView extends StatefulWidget {
   ///
   /// Defaults to [Clip.hardEdge].
   final Clip clipBehavior;
+
+  /// {@macro flutter.rendering.RenderViewportBase.scrollCacheExtent}
+  final ScrollCacheExtent? scrollCacheExtent;
 }
 
 abstract class _AnimatedScrollViewState<T extends _AnimatedScrollView> extends State<T>
@@ -741,10 +749,14 @@ abstract class _AnimatedScrollViewState<T extends _AnimatedScrollView> extends S
       _sliverAnimatedMultiBoxKey.currentState!.removeItem(index, builder, duration: duration);
     } else {
       final int itemIndex = _computeItemIndex(index);
+      // Children animating out from earlier removeItem calls still count
+      // towards [_itemsCount], so subtract them to recognize the new tail
+      // of the visible list while a previous removal is still in flight.
+      final int visibleItemsCount = _itemsCount - _outgoingItemsCount;
       // Remove the item
       _sliverAnimatedMultiBoxKey.currentState!.removeItem(itemIndex, builder, duration: duration);
-      if (_itemsCount > 1) {
-        if (itemIndex == _itemsCount - 1) {
+      if (visibleItemsCount > 1) {
+        if (itemIndex == visibleItemsCount - 1) {
           // The item was removed from the end of the list, so the separator to remove is the one at `last index` - 1.
           _sliverAnimatedMultiBoxKey.currentState!.removeItem(
             itemIndex - 1,
@@ -808,6 +820,8 @@ abstract class _AnimatedScrollViewState<T extends _AnimatedScrollView> extends S
 
   int get _itemsCount => _sliverAnimatedMultiBoxKey.currentState!._itemsCount;
 
+  int get _outgoingItemsCount => _sliverAnimatedMultiBoxKey.currentState!._outgoingItems.length;
+
   // Helper method to compute the index for the item to insert or remove considering the separators in between.
   int _computeItemIndex(int index) {
     if (index == 0) {
@@ -817,7 +831,7 @@ abstract class _AnimatedScrollViewState<T extends _AnimatedScrollView> extends S
     final int separatorsCount = itemsAndSeparatorsCount ~/ 2;
     final int separatedItemsCount = _itemsCount - separatorsCount;
 
-    final bool isNewLastIndex = index == separatedItemsCount;
+    final isNewLastIndex = index == separatedItemsCount;
     final int indexAdjustedForSeparators = index * 2;
     return isNewLastIndex ? indexAdjustedForSeparators - 1 : indexAdjustedForSeparators;
   }
@@ -871,6 +885,7 @@ abstract class _AnimatedScrollViewState<T extends _AnimatedScrollView> extends S
       physics: widget.physics,
       clipBehavior: widget.clipBehavior,
       shrinkWrap: widget.shrinkWrap,
+      scrollCacheExtent: widget.scrollCacheExtent,
       slivers: <Widget>[sliver],
     );
   }
@@ -920,7 +935,9 @@ const Duration _kDuration = Duration(milliseconds: 300);
 // Incoming and outgoing animated items.
 class _ActiveItem implements Comparable<_ActiveItem> {
   _ActiveItem.incoming(this.controller, this.itemIndex) : removedItemBuilder = null;
+
   _ActiveItem.outgoing(this.controller, this.itemIndex, this.removedItemBuilder);
+
   _ActiveItem.index(this.itemIndex) : controller = null, removedItemBuilder = null;
 
   final AnimationController? controller;
@@ -1282,7 +1299,7 @@ abstract class _SliverAnimatedMultiBoxAdaptorState<T extends _SliverAnimatedMult
   // _outgoingItems when the remove animation finishes.
 
   int _indexToItemIndex(int index) {
-    int itemIndex = index;
+    var itemIndex = index;
     for (final _ActiveItem item in _outgoingItems) {
       if (item.itemIndex <= itemIndex) {
         itemIndex += 1;
@@ -1294,7 +1311,7 @@ abstract class _SliverAnimatedMultiBoxAdaptorState<T extends _SliverAnimatedMult
   }
 
   int _itemIndexToIndex(int itemIndex) {
-    int index = itemIndex;
+    var index = itemIndex;
     for (final _ActiveItem item in _outgoingItems) {
       assert(item.itemIndex != itemIndex);
       if (item.itemIndex < itemIndex) {
@@ -1356,8 +1373,8 @@ abstract class _SliverAnimatedMultiBoxAdaptorState<T extends _SliverAnimatedMult
       }
     }
 
-    final AnimationController controller = AnimationController(duration: duration, vsync: this);
-    final _ActiveItem incomingItem = _ActiveItem.incoming(controller, itemIndex);
+    final controller = AnimationController(duration: duration, vsync: this);
+    final incomingItem = _ActiveItem.incoming(controller, itemIndex);
     setState(() {
       _incomingItems
         ..add(incomingItem)
@@ -1374,7 +1391,7 @@ abstract class _SliverAnimatedMultiBoxAdaptorState<T extends _SliverAnimatedMult
   /// to [AnimatedGrid.itemBuilder] or [AnimatedList.itemBuilder] when the items
   /// are visible.
   void insertAllItems(int index, int length, {Duration duration = _kDuration}) {
-    for (int i = 0; i < length; i++) {
+    for (var i = 0; i < length; i++) {
       insertItem(index + i, duration: duration);
     }
   }
@@ -1402,7 +1419,7 @@ abstract class _SliverAnimatedMultiBoxAdaptorState<T extends _SliverAnimatedMult
     final AnimationController controller =
         incomingItem?.controller ??
         AnimationController(duration: duration, value: 1.0, vsync: this);
-    final _ActiveItem outgoingItem = _ActiveItem.outgoing(controller, itemIndex, builder);
+    final outgoingItem = _ActiveItem.outgoing(controller, itemIndex, builder);
     setState(() {
       _outgoingItems
         ..add(outgoingItem)
@@ -1436,10 +1453,14 @@ abstract class _SliverAnimatedMultiBoxAdaptorState<T extends _SliverAnimatedMult
   /// items will still appear for `duration` and during that time
   /// `builder` must construct its widget as needed.
   ///
-  /// This method's semantics are the same as Dart's [List.clear] method: it
-  /// removes all the items in the list.
+  /// This method removes all items from the list. Items that are in the
+  /// process of being inserted will also be removed. Items that are already in
+  /// the process of being removed will be excluded.
   void removeAllItems(AnimatedRemovedItemBuilder builder, {Duration duration = _kDuration}) {
-    for (int i = _itemsCount - 1; i >= 0; i--) {
+    assert(_itemsCount >= 0);
+    assert(_itemsCount - _outgoingItems.length >= 0);
+    final int visibleItemCount = _itemsCount - _outgoingItems.length;
+    for (int i = visibleItemCount - 1; i >= 0; i--) {
       removeItem(i, builder, duration: duration);
     }
   }

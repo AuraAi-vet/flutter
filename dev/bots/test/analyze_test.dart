@@ -17,7 +17,7 @@ import 'common.dart';
 typedef AsyncVoidCallback = Future<void> Function();
 
 Future<String> capture(AsyncVoidCallback callback, {bool shouldHaveErrors = false}) async {
-  final StringBuffer buffer = StringBuffer();
+  final buffer = StringBuffer();
   final PrintCallback oldPrint = print;
   try {
     print = (Object? line) {
@@ -47,7 +47,7 @@ Future<String> capture(AsyncVoidCallback callback, {bool shouldHaveErrors = fals
 
 void main() {
   final String testRootPath = path.join('test', 'analyze-test-input', 'root');
-  final String dartName = Platform.isWindows ? 'dart.exe' : 'dart';
+  final dartName = Platform.isWindows ? 'dart.exe' : 'dart';
   final String dartPath = path.canonicalize(
     path.join('..', '..', 'bin', 'cache', 'dart-sdk', 'bin', dartName),
   );
@@ -63,7 +63,7 @@ void main() {
         'Error summary',
       ]);
     }, shouldHaveErrors: true);
-    final File fixture = File(path.join(testRootPath, 'packages', 'foo', 'meta.dart'));
+    final fixture = File(path.join(testRootPath, 'packages', 'foo', 'meta.dart'));
     expect(result, matchesErrorsInFile(fixture, endsWith: <String>['', 'Error summary']));
   });
 
@@ -72,7 +72,7 @@ void main() {
       () => verifyDeprecations(testRootPath, minimumMatches: 2),
       shouldHaveErrors: true,
     );
-    final File fixture = File(path.join(testRootPath, 'packages', 'foo', 'deprecation.dart'));
+    final fixture = File(path.join(testRootPath, 'packages', 'foo', 'deprecation.dart'));
     expect(
       result,
       matchesErrorsInFile(
@@ -89,11 +89,10 @@ void main() {
       () => verifyGoldenTags(testRootPath, minimumMatches: 6),
       shouldHaveErrors: true,
     )).split('\n');
-    const String noTag =
+    const noTag =
         "Files containing golden tests must be tagged using @Tags(<String>['reduced-test-set']) "
         'at the top of the file before import statements.';
-    const String missingTag =
-        "Files containing golden tests must be tagged with 'reduced-test-set'.";
+    const missingTag = "Files containing golden tests must be tagged with 'reduced-test-set'.";
     final List<String> lines = <String>[
       '║ test/analyze-test-input/root/packages/foo/golden_missing_tag.dart: $missingTag',
       '║ test/analyze-test-input/root/packages/foo/golden_no_tag.dart: $noTag',
@@ -164,8 +163,8 @@ void main() {
       () => verifyRepositoryLinks(testRootPath),
       shouldHaveErrors: true,
     );
-    const String bannedBranch = 'master';
-    final String file = Platform.isWindows
+    const bannedBranch = 'master';
+    final file = Platform.isWindows
         ? r'test\analyze-test-input\root\packages\foo\bad_repository_links.dart'
         : 'test/analyze-test-input/root/packages/foo/bad_repository_links.dart';
     final String lines = <String>[
@@ -270,7 +269,7 @@ void main() {
       shouldHaveErrors: true,
     );
 
-    final File fixture = File(path.join(testRootPath, 'packages', 'flutter', 'lib', 'bar.dart'));
+    final fixture = File(path.join(testRootPath, 'packages', 'flutter', 'lib', 'bar.dart'));
     expect(
       result,
       matchesErrorsInFile(
@@ -292,9 +291,7 @@ void main() {
       shouldHaveErrors: true,
     );
 
-    final File fixture = File(
-      path.join(testRootPath, 'packages', 'flutter', 'lib', 'taboo_words.dart'),
-    );
+    final fixture = File(path.join(testRootPath, 'packages', 'flutter', 'lib', 'taboo_words.dart'));
     expect(
       result,
       matchesErrorsInFile(
@@ -319,7 +316,7 @@ void main() {
       shouldHaveErrors: true,
     );
 
-    final File fixture = File(
+    final fixture = File(
       path.join(testRootPath, 'packages', 'flutter', 'lib', 'double_clamp.dart'),
     );
     expect(
@@ -344,9 +341,7 @@ void main() {
       shouldHaveErrors: true,
     );
 
-    final File fixture = File(
-      path.join(testRootPath, 'packages', 'flutter', 'lib', 'stopwatch.dart'),
-    );
+    final fixture = File(path.join(testRootPath, 'packages', 'flutter', 'lib', 'stopwatch.dart'));
     expect(
       result,
       matchesErrorsInFile(
@@ -369,7 +364,7 @@ void main() {
       ),
       shouldHaveErrors: true,
     );
-    final File fixture = File(
+    final fixture = File(
       path.join(testRootPath, 'packages', 'flutter', 'lib', 'renderbox_intrinsics.dart'),
     );
     expect(
@@ -392,7 +387,7 @@ void main() {
     final String lines = <String>[
       '║ chip.dart is not up-to-date with the token template file.',
     ].map((String line) => line.replaceAll('/', Platform.isWindows ? r'\' : '/')).join('\n');
-    const String errorStart = '╔═';
+    const errorStart = '╔═';
     result = result.substring(result.indexOf(errorStart));
     expect(
       result,
@@ -401,5 +396,132 @@ void main() {
       '║ See: https://github.com/flutter/flutter/blob/main/dev/tools/gen_defaults to update the token template files.\n'
       '╚═══════════════════════════════════════════════════════════════════════════════\n',
     );
+  });
+
+  test('analyze.dart - help flag', () async {
+    final String result = await capture(() async {
+      await run(<String>['-h']);
+    });
+    expect(result, contains('Usage: dart dev/bots/analyze.dart [arguments]'));
+    expect(result, contains('Options:'));
+    expect(result, contains('Available rules:'));
+  });
+
+  test('analyze.dart - --only flag', () async {
+    final executed = <String>[];
+    final dummyValidations = <Validation>[
+      Validation('rule1', 'Rule 1', () async {
+        executed.add('rule1');
+      }),
+      Validation('rule2', 'Rule 2', () async {
+        executed.add('rule2');
+      }),
+    ];
+
+    await capture(() async {
+      await run(<String>['--only=rule1'], validationsForTesting: dummyValidations);
+    });
+
+    expect(executed, <String>['rule1']);
+  });
+
+  test('analyze.dart - --skip flag', () async {
+    final executed = <String>[];
+    final dummyValidations = <Validation>[
+      Validation('rule1', 'Rule 1', () async {
+        executed.add('rule1');
+      }),
+      Validation('rule2', 'Rule 2', () async {
+        executed.add('rule2');
+      }),
+    ];
+
+    await capture(() async {
+      await run(<String>['--skip=rule1'], validationsForTesting: dummyValidations);
+    });
+
+    expect(executed, <String>['rule2']);
+  });
+
+  test('analyze.dart - --only and --skip mutually exclusive', () async {
+    final dummyValidations = <Validation>[Validation('rule1', 'Rule 1', () async {})];
+
+    final String result = await capture(() async {
+      await run(<String>['--only=rule1', '--skip=rule1'], validationsForTesting: dummyValidations);
+    }, shouldHaveErrors: true);
+
+    expect(result, contains('Cannot use both --only and --skip at the same time.'));
+  });
+
+  test('analyze.dart - invalid rule name', () async {
+    final dummyValidations = <Validation>[Validation('rule1', 'Rule 1', () async {})];
+
+    final String result = await capture(() async {
+      await run(<String>['--only=invalid'], validationsForTesting: dummyValidations);
+    }, shouldHaveErrors: true);
+
+    expect(result, contains('Unknown rule "invalid" passed to --only.'));
+  });
+
+  test('analyze.dart - --only flag with multiple comma-separated values', () async {
+    final executed = <String>[];
+    final dummyValidations = <Validation>[
+      Validation('rule1', 'Rule 1', () async {
+        executed.add('rule1');
+      }),
+      Validation('rule2', 'Rule 2', () async {
+        executed.add('rule2');
+      }),
+      Validation('rule3', 'Rule 3', () async {
+        executed.add('rule3');
+      }),
+    ];
+
+    await capture(() async {
+      await run(<String>['--only=rule1,rule3'], validationsForTesting: dummyValidations);
+    });
+
+    expect(executed, <String>['rule1', 'rule3']);
+  });
+
+  test('analyze.dart - --skip flag with multiple comma-separated values', () async {
+    final executed = <String>[];
+    final dummyValidations = <Validation>[
+      Validation('rule1', 'Rule 1', () async {
+        executed.add('rule1');
+      }),
+      Validation('rule2', 'Rule 2', () async {
+        executed.add('rule2');
+      }),
+      Validation('rule3', 'Rule 3', () async {
+        executed.add('rule3');
+      }),
+    ];
+
+    await capture(() async {
+      await run(<String>['--skip=rule1,rule3'], validationsForTesting: dummyValidations);
+    });
+
+    expect(executed, <String>['rule2']);
+  });
+
+  test('analyze.dart - --only flag passed multiple times errors', () async {
+    final dummyValidations = <Validation>[Validation('rule1', 'Rule 1', () async {})];
+
+    final String result = await capture(() async {
+      await run(<String>['--only=rule1', '--only=rule1'], validationsForTesting: dummyValidations);
+    }, shouldHaveErrors: true);
+
+    expect(result, contains('The --only argument must not be used more than once.'));
+  });
+
+  test('analyze.dart - --skip flag passed multiple times errors', () async {
+    final dummyValidations = <Validation>[Validation('rule1', 'Rule 1', () async {})];
+
+    final String result = await capture(() async {
+      await run(<String>['--skip=rule1', '--skip=rule1'], validationsForTesting: dummyValidations);
+    }, shouldHaveErrors: true);
+
+    expect(result, contains('The --skip argument must not be used more than once.'));
   });
 }

@@ -231,6 +231,7 @@ class MagnifierController {
   /// If the magnifier already exists (i.e. [overlayEntry] != null), then [show]
   /// will replace the old overlay without playing an exit animation. Consider
   /// awaiting [hide] first, to animate from the old magnifier to the new one.
+  @awaitNotRequired
   Future<void> show({
     required BuildContext context,
     required WidgetBuilder builder,
@@ -275,6 +276,7 @@ class MagnifierController {
   ///
   ///  * [removeFromOverlay] which removes the [OverlayEntry] from the [Overlay]
   ///    synchronously.
+  @awaitNotRequired
   Future<void> hide({bool removeFromOverlay = true}) async {
     if (overlayEntry == null) {
       return;
@@ -629,7 +631,7 @@ class _RenderMagnification extends RenderProxyBox {
   @override
   void paint(PaintingContext context, Offset offset) {
     final Offset thisCenter = Alignment.center.alongSize(size) + offset;
-    final Matrix4 matrix = Matrix4.identity()
+    final matrix = Matrix4.identity()
       ..translateByDouble(
         magnificationScale * ((focalPointOffset.dx * -1) - thisCenter.dx) + thisCenter.dx,
         magnificationScale * ((focalPointOffset.dy * -1) - thisCenter.dy) + thisCenter.dy,
@@ -637,10 +639,7 @@ class _RenderMagnification extends RenderProxyBox {
         1,
       )
       ..scaleByDouble(magnificationScale, magnificationScale, magnificationScale, 1);
-    final ImageFilter filter = ImageFilter.matrix(
-      matrix.storage,
-      filterQuality: FilterQuality.high,
-    );
+    final filter = ImageFilter.matrix(matrix.storage, filterQuality: FilterQuality.high);
 
     if (layer == null) {
       layer = BackdropFilterLayer(filter: filter);

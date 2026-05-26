@@ -84,38 +84,34 @@ void testMain() {
     expect(hidesRevealIcons, isFalse);
   }, skip: isEdge);
 
-  test(
-    'Attaches styles to hide the autofill overlay for browsers that support it',
-    () {
-      final String vendorPrefix = (isSafari || isFirefox) ? '' : '-webkit-';
-      final bool autofillOverlay = hasCssRule(
-        styleElement,
-        selector: '.transparentTextEditing:${vendorPrefix}autofill',
-        declaration: 'opacity: 0 !important',
-      );
-      final bool autofillOverlayHovered = hasCssRule(
-        styleElement,
-        selector: '.transparentTextEditing:${vendorPrefix}autofill:hover',
-        declaration: 'opacity: 0 !important',
-      );
-      final bool autofillOverlayFocused = hasCssRule(
-        styleElement,
-        selector: '.transparentTextEditing:${vendorPrefix}autofill:focus',
-        declaration: 'opacity: 0 !important',
-      );
-      final bool autofillOverlayActive = hasCssRule(
-        styleElement,
-        selector: '.transparentTextEditing:${vendorPrefix}autofill:active',
-        declaration: 'opacity: 0 !important',
-      );
+  test('Attaches styles to hide the autofill overlay for browsers that support it', () {
+    final vendorPrefix = (isSafari || isFirefox) ? '' : '-webkit-';
+    final bool autofillOverlay = hasCssRule(
+      styleElement,
+      selector: '.transparentTextEditing:${vendorPrefix}autofill',
+      declaration: 'opacity: 0 !important',
+    );
+    final bool autofillOverlayHovered = hasCssRule(
+      styleElement,
+      selector: '.transparentTextEditing:${vendorPrefix}autofill:hover',
+      declaration: 'opacity: 0 !important',
+    );
+    final bool autofillOverlayFocused = hasCssRule(
+      styleElement,
+      selector: '.transparentTextEditing:${vendorPrefix}autofill:focus',
+      declaration: 'opacity: 0 !important',
+    );
+    final bool autofillOverlayActive = hasCssRule(
+      styleElement,
+      selector: '.transparentTextEditing:${vendorPrefix}autofill:active',
+      declaration: 'opacity: 0 !important',
+    );
 
-      expect(autofillOverlay, isTrue);
-      expect(autofillOverlayHovered, isTrue);
-      expect(autofillOverlayFocused, isTrue);
-      expect(autofillOverlayActive, isTrue);
-    },
-    skip: !browserHasAutofillOverlay(),
-  );
+    expect(autofillOverlay, isTrue);
+    expect(autofillOverlayHovered, isTrue);
+    expect(autofillOverlayFocused, isTrue);
+    expect(autofillOverlayActive, isTrue);
+  }, skip: !browserHasAutofillOverlay());
 }
 
 /// Finds out whether a given CSS Rule ([selector] { [declaration]; }) exists in a [styleElement].
@@ -128,9 +124,9 @@ bool hasCssRule(
   assert(styleElement.sheet != null);
 
   // regexr.com/740ff
-  final RegExp ruleLike = RegExp('[^{]*(?:$selector)[^{]*{[^}]*(?:$declaration)[^}]*}');
+  final ruleLike = RegExp('[^{]*(?:$selector)[^{]*{[^}]*(?:$declaration)[^}]*}');
 
-  final DomCSSStyleSheet sheet = styleElement.sheet! as DomCSSStyleSheet;
+  final sheet = styleElement.sheet! as DomCSSStyleSheet;
 
   // Check that the cssText of any rule matches the ruleLike RegExp.
   final bool result = sheet.cssRules

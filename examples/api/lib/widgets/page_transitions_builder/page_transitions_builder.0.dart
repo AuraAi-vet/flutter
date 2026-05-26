@@ -18,8 +18,8 @@ class PageTransitionsBuilderExampleApp extends StatelessWidget {
       theme: ThemeData(
         pageTransitionsTheme: const PageTransitionsTheme(
           builders: <TargetPlatform, PageTransitionsBuilder>{
-            TargetPlatform.android: SlideRightPageTransitionsBuilder(),
-            TargetPlatform.iOS: SlideRightPageTransitionsBuilder(),
+            .android: SlideRightPageTransitionsBuilder(),
+            .iOS: SlideRightPageTransitionsBuilder(),
           },
         ),
       ),
@@ -40,7 +40,7 @@ class SlideRightPageTransitionsBuilder extends PageTransitionsBuilder {
     Widget child,
   ) {
     const Offset begin = Offset(1.0, 0.0);
-    const Offset end = Offset.zero;
+    const Offset end = .zero;
     final Animatable<Offset> tween = Tween<Offset>(
       begin: begin,
       end: end,
@@ -91,7 +91,13 @@ class CustomPageRoute<T> extends PageRoute<T> {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    return transitionsBuilder.buildTransitions(this, context, animation, secondaryAnimation, child);
+    return transitionsBuilder.buildTransitions(
+      this,
+      context,
+      animation,
+      secondaryAnimation,
+      child,
+    );
   }
 }
 
@@ -105,9 +111,11 @@ class HomePage extends StatelessWidget {
       body: Center(
         child: ElevatedButton(
           onPressed: () {
-            Navigator.of(
-              context,
-            ).push(CustomPageRoute<void>(builder: (BuildContext context) => const SecondPage()));
+            Navigator.of(context).push(
+              CustomPageRoute<void>(
+                builder: (BuildContext context) => const SecondPage(),
+              ),
+            );
           },
           child: const Text('Navigate with Custom Transition'),
         ),
@@ -123,7 +131,9 @@ class SecondPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Second Page')),
-      body: const Center(child: Text('This page appeared with a custom transition!')),
+      body: const Center(
+        child: Text('This page appeared with a custom transition!'),
+      ),
     );
   }
 }

@@ -108,6 +108,11 @@ base class GpuContext extends NativeFieldWrapperClass1 {
 
   /// Allocates a new texture in GPU-resident memory.
   ///
+  /// [mipLevelCount] specifies the number of mip levels to allocate for the
+  /// texture. The default is 1 (no mip chain). Use [Texture.fullMipCount] to
+  /// allocate a full chain. Must be in the range
+  /// `[1, Texture.fullMipCount(width, height)]`.
+  ///
   /// Throws an exception if the [Texture] creation failed.
   Texture createTexture(
     StorageMode storageMode,
@@ -117,10 +122,28 @@ base class GpuContext extends NativeFieldWrapperClass1 {
     sampleCount = 1,
     TextureCoordinateSystem coordinateSystem =
         TextureCoordinateSystem.renderToTexture,
+
+    /// The type of texture to create.
+    ///
+    /// If not specified, this will be inferred from the `sampleCount`.
+    TextureType? textureType,
     bool enableRenderTargetUsage = true,
     bool enableShaderReadUsage = true,
     bool enableShaderWriteUsage = false,
+    int mipLevelCount = 1,
   }) {
+    final resolvedTextureType =
+        textureType ??
+        ((sampleCount == 1)
+            ? TextureType.texture2D
+            : TextureType.texture2DMultisample);
+    final int maxMipLevels = Texture.fullMipCount(width, height);
+    if (mipLevelCount < 1 || mipLevelCount > maxMipLevels) {
+      throw Exception(
+        'mipLevelCount ($mipLevelCount) must be in the range [1, $maxMipLevels] '
+        'for a ${width}x$height texture',
+      );
+    }
     Texture result = Texture._initialize(
       this,
       storageMode,
@@ -129,9 +152,11 @@ base class GpuContext extends NativeFieldWrapperClass1 {
       height,
       sampleCount,
       coordinateSystem,
+      resolvedTextureType,
       enableRenderTargetUsage,
       enableShaderReadUsage,
       enableShaderWriteUsage,
+      mipLevelCount,
     );
     if (!result.isValid) {
       throw Exception('Texture creation failed');
@@ -146,9 +171,15 @@ base class GpuContext extends NativeFieldWrapperClass1 {
 
   RenderPipeline createRenderPipeline(
     Shader vertexShader,
-    Shader fragmentShader,
-  ) {
-    return RenderPipeline._(this, vertexShader, fragmentShader);
+    Shader fragmentShader, {
+    VertexLayout? vertexLayout,
+  }) {
+    return RenderPipeline._(
+      this,
+      vertexShader,
+      fragmentShader,
+      vertexLayout: vertexLayout,
+    );
   }
 
   /// Associates the default Impeller context with this Context.

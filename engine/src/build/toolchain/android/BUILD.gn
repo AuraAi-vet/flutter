@@ -72,9 +72,9 @@ template("android_toolchain") {
     assert(invoker.is_clang)
     host_dir = ""
     if (host_os == "linux") {
-      host_dir = "linux-x64"
+      host_dir = "linux-${host_cpu}"
     } else if (host_os == "mac") {
-      host_dir = "mac-x64"
+      host_dir = "mac-${host_cpu}"
     } else {
       assert(false, "Unknown host")
     }
@@ -146,7 +146,7 @@ android_toolchains_helper("arm64") {
 # This toolchain should only be used to build the target
 # //third_party/vulkan_validation_layers. This is because vulkan validation
 # layers requires API level >= 26, but Flutter officially supports down to API
-# level 22, which is the default value of the android_api_level argument.
+# level 24, which is the default value of the android_api_level argument.
 android_toolchains_helper("arm64_apilevel26") {
   toolchain_cpu = "arm64"
   extra_toolchain_args = {

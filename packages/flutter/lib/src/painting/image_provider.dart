@@ -123,9 +123,9 @@ class ImageConfiguration {
 
   @override
   String toString() {
-    final StringBuffer result = StringBuffer();
+    final result = StringBuffer();
     result.write('ImageConfiguration(');
-    bool hasArguments = false;
+    var hasArguments = false;
     if (bundle != null) {
       result.write('bundle: $bundle');
       hasArguments = true;
@@ -431,7 +431,7 @@ abstract class ImageProvider<T extends Object> {
     required ImageConfiguration configuration,
     ImageErrorListener? handleError,
   }) {
-    final Completer<ImageCacheStatus?> completer = Completer<ImageCacheStatus?>();
+    final completer = Completer<ImageCacheStatus?>();
     _createErrorHandlerAndKey(
       configuration,
       (T key, ImageErrorListener innerHandleError) {
@@ -474,14 +474,18 @@ abstract class ImageProvider<T extends Object> {
     _AsyncKeyErrorHandler<T?> errorCallback,
   ) {
     T? obtainedKey;
-    bool didError = false;
+    var didError = false;
+    // `handleError` does not need to be awaited because `errorCallback` will
+    // always eventually set the stream.completer, and external callers care only about
+    // when the stream completes.
+    @awaitNotRequired
     Future<void> handleError(Object exception, StackTrace? stack) async {
       if (didError) {
         return;
       }
       if (!didError) {
         didError = true;
-        errorCallback(obtainedKey, exception, stack);
+        await errorCallback(obtainedKey, exception, stack);
       }
     }
 
@@ -1379,8 +1383,8 @@ class ResizeImage extends ImageProvider<ResizeImageKey> {
               final double aspectRatio = intrinsicWidth / intrinsicHeight;
               final int maxWidth = width ?? intrinsicWidth;
               final int maxHeight = height ?? intrinsicHeight;
-              int targetWidth = intrinsicWidth;
-              int targetHeight = intrinsicHeight;
+              var targetWidth = intrinsicWidth;
+              var targetHeight = intrinsicHeight;
 
               if (targetWidth > maxWidth) {
                 targetWidth = maxWidth;

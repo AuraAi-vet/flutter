@@ -37,10 +37,23 @@ abstract interface class HitTestDispatcher {
 }
 
 /// An object that can handle events.
+///
+/// The type must implement [NativeHitTestTarget] if it represents a platform view.
+// TODO(hellohuanlin): Make RenderAndroidView and RenderAppKitView to extend NativeHitTestTarget.
+// See: https://github.com/flutter/flutter/issues/184440.
 abstract interface class HitTestTarget {
   /// Override this method to receive events.
   void handleEvent(PointerEvent event, HitTestEntry<HitTestTarget> entry);
 }
+
+/// A mixin that represents a hit test target backed by a platform view.
+///
+/// See also:
+///
+///   * [HitTestTarget].
+// TODO(hellohuanlin): Make RenderAndroidView and RenderAppKitView to extend NativeHitTestTarget.
+// See: https://github.com/flutter/flutter/issues/184440.
+mixin NativeHitTestTarget {}
 
 /// Data collected during a hit test about a specific [HitTestTarget].
 ///
@@ -280,7 +293,7 @@ class HitTestResult {
     Vector4 b, {
     double epsilon = precisionErrorTolerance,
   }) {
-    bool result = true;
+    var result = true;
     assert(() {
       final Vector4 difference = a - b;
       result = difference.storage.every((double component) => component.abs() < epsilon);

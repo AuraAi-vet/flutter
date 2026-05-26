@@ -29,10 +29,12 @@ class TextFieldShiftEnterExample extends StatefulWidget {
   const TextFieldShiftEnterExample({super.key});
 
   @override
-  State<TextFieldShiftEnterExample> createState() => _TextFieldShiftEnterExampleState();
+  State<TextFieldShiftEnterExample> createState() =>
+      _TextFieldShiftEnterExampleState();
 }
 
-class _TextFieldShiftEnterExampleState extends State<TextFieldShiftEnterExample> {
+class _TextFieldShiftEnterExampleState
+    extends State<TextFieldShiftEnterExample> {
   final FocusNode _focusNode = FocusNode();
 
   final TextEditingController _controller = TextEditingController();
@@ -58,7 +60,7 @@ class _TextFieldShiftEnterExampleState extends State<TextFieldShiftEnterExample>
                         'Press Shift+Enter for a new line\n'
                         'Press Enter to submit'
                   : 'Submitted text:\n\n${_submittedText!}',
-              textAlign: TextAlign.center,
+              textAlign: .center,
             ),
           ),
         ),
@@ -72,32 +74,38 @@ class _TextFieldShiftEnterExampleState extends State<TextFieldShiftEnterExample>
             actions: <Type, Action<Intent>>{
               // When the _InsertNewLineTextIntent is invoked, CallbackAction's
               // onInvoke callback is executed.
-              _InsertNewLineTextIntent: CallbackAction<_InsertNewLineTextIntent>(
-                onInvoke: (_InsertNewLineTextIntent intent) {
-                  final TextEditingValue value = _controller.value;
-                  final String newText = value.text.replaceRange(
-                    value.selection.start,
-                    value.selection.end,
-                    '\n',
-                  );
-                  _controller.value = value.copyWith(
-                    text: newText,
-                    selection: TextSelection.collapsed(offset: value.selection.start + 1),
-                  );
+              _InsertNewLineTextIntent:
+                  CallbackAction<_InsertNewLineTextIntent>(
+                    onInvoke: (_InsertNewLineTextIntent intent) {
+                      final TextEditingValue value = _controller.value;
+                      final String newText = value.text.replaceRange(
+                        value.selection.start,
+                        value.selection.end,
+                        '\n',
+                      );
+                      _controller.value = value.copyWith(
+                        text: newText,
+                        selection: TextSelection.collapsed(
+                          offset: value.selection.start + 1,
+                        ),
+                      );
 
-                  return null;
-                },
-              ),
+                      return null;
+                    },
+                  ),
             },
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const .all(12),
               child: TextField(
                 focusNode: _focusNode,
                 autofocus: true,
                 controller: _controller,
-                decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Text'),
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Text',
+                ),
                 maxLines: null,
-                textInputAction: TextInputAction.done,
+                textInputAction: .done,
                 onSubmitted: (String? text) {
                   setState(() {
                     _submittedText = text;

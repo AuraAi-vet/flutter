@@ -7,16 +7,22 @@
 @Tags(<String>['reduced-test-set'])
 library;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  const kAmber = Color(0xFFFFC107);
+  const kGreen = Color(0xFF4CAF50);
+  const kRed = Color(0xFFF44336);
+  const kGrey = Color(0xFF9E9E9E);
+  const kPurple = Color(0xFF9C27B0);
+
   tearDown(() {
     debugDisableShadows = true;
   });
 
   test('BorderSide control test', () {
-    const BorderSide side1 = BorderSide();
+    const side1 = BorderSide();
     final BorderSide side2 = side1.copyWith(
       color: const Color(0xFF00FFFF),
       width: 2.0,
@@ -53,7 +59,7 @@ void main() {
   });
 
   test('BorderSide toString test', () {
-    const BorderSide side1 = BorderSide();
+    const side1 = BorderSide();
     final BorderSide side2 = side1.copyWith(
       color: const Color(0xFF00FFFF),
       width: 2.0,
@@ -65,7 +71,7 @@ void main() {
   });
 
   test('Border control test', () {
-    final Border border1 = Border.all(width: 4.0);
+    final border1 = Border.all(width: 4.0);
     final Border border2 = Border.lerp(null, border1, 0.25)!;
     final Border border3 = Border.lerp(border1, null, 0.25)!;
 
@@ -93,7 +99,7 @@ void main() {
   });
 
   test('BoxShadow control test', () {
-    const BoxShadow shadow1 = BoxShadow(blurRadius: 4.0);
+    const shadow1 = BoxShadow(blurRadius: 4.0);
     final BoxShadow shadow2 = BoxShadow.lerp(null, shadow1, 0.25)!;
     final BoxShadow shadow3 = BoxShadow.lerp(shadow1, null, 0.25)!;
 
@@ -119,19 +125,19 @@ void main() {
 
   test('BoxShadow.lerp identical a,b', () {
     expect(BoxShadow.lerp(null, null, 0), null);
-    const BoxShadow border = BoxShadow();
+    const border = BoxShadow();
     expect(identical(BoxShadow.lerp(border, border, 0.5), border), true);
   });
 
   test('BoxShadowList.lerp identical a,b', () {
     expect(BoxShadow.lerpList(null, null, 0), null);
-    const List<BoxShadow> border = <BoxShadow>[BoxShadow()];
+    const border = <BoxShadow>[BoxShadow()];
     expect(identical(BoxShadow.lerpList(border, border, 0.5), border), true);
   });
 
   test('BoxShadow BlurStyle test', () {
-    const BoxShadow shadow1 = BoxShadow(blurRadius: 4.0);
-    const BoxShadow shadow2 = BoxShadow(blurRadius: 4.0, blurStyle: BlurStyle.outer);
+    const shadow1 = BoxShadow(blurRadius: 4.0);
+    const shadow2 = BoxShadow(blurRadius: 4.0, blurStyle: BlurStyle.outer);
     final BoxShadow shadow3 = BoxShadow.lerp(shadow1, null, 0.25)!;
     final BoxShadow shadow4 = BoxShadow.lerp(null, shadow1, 0.25)!;
     final BoxShadow shadow5 = BoxShadow.lerp(shadow1, shadow2, 0.25)!;
@@ -188,7 +194,7 @@ void main() {
         child: RepaintBoundary(
           key: key,
           child: Container(
-            color: Colors.white,
+            color: const Color(0xFFFFFFFF),
             width: 50,
             height: 50,
             child: Center(
@@ -217,7 +223,7 @@ void main() {
         child: RepaintBoundary(
           key: key,
           child: Container(
-            color: Colors.white,
+            color: const Color(0xFFFFFFFF),
             width: 50,
             height: 50,
             child: Center(
@@ -246,7 +252,7 @@ void main() {
         child: RepaintBoundary(
           key: key,
           child: Container(
-            color: Colors.white,
+            color: const Color(0xFFFFFFFF),
             width: 50,
             height: 50,
             child: Center(
@@ -275,7 +281,7 @@ void main() {
         child: RepaintBoundary(
           key: key,
           child: Container(
-            color: Colors.white,
+            color: const Color(0xFFFFFFFF),
             width: 50,
             height: 50,
             child: Center(
@@ -302,18 +308,18 @@ void main() {
         child: RepaintBoundary(
           key: key,
           child: Container(
-            color: Colors.amber,
+            color: kAmber,
             width: 128,
             height: 128,
             child: Center(
               child: Container(
                 decoration: const BoxDecoration(
-                  color: Colors.black,
+                  color: Color(0xFF000000),
                   boxShadow: <BoxShadow>[
                     BoxShadow(
                       blurRadius: 16.0,
                       offset: Offset(4, 4),
-                      color: Colors.green,
+                      color: kGreen,
                       spreadRadius: 2,
                     ),
                   ],
@@ -342,19 +348,19 @@ void main() {
         child: RepaintBoundary(
           key: key,
           child: Container(
-            color: Colors.amber,
+            color: kAmber,
             width: 128,
             height: 128,
             child: Center(
               child: Container(
                 decoration: const BoxDecoration(
-                  color: Colors.black,
+                  color: Color(0xFF000000),
                   boxShadow: <BoxShadow>[
                     BoxShadow(
                       blurRadius: 16.0,
                       offset: Offset(4, 4),
                       blurStyle: BlurStyle.outer,
-                      color: Colors.red,
+                      color: kRed,
                       spreadRadius: 2,
                     ),
                   ],
@@ -383,19 +389,19 @@ void main() {
         child: RepaintBoundary(
           key: key,
           child: Container(
-            color: Colors.grey,
+            color: kGrey,
             width: 128,
             height: 128,
             child: Center(
               child: Container(
                 decoration: const BoxDecoration(
-                  color: Colors.black,
+                  color: Color(0xFF000000),
                   boxShadow: <BoxShadow>[
                     BoxShadow(
                       blurRadius: 16.0,
                       offset: Offset(4, 4),
                       blurStyle: BlurStyle.solid,
-                      color: Colors.purple,
+                      color: kPurple,
                       spreadRadius: 2,
                     ),
                   ],
@@ -423,19 +429,19 @@ void main() {
         child: RepaintBoundary(
           key: key,
           child: Container(
-            color: Colors.green,
+            color: kGreen,
             width: 128,
             height: 128,
             child: Center(
               child: Container(
                 decoration: const BoxDecoration(
-                  color: Colors.black,
+                  color: Color(0xFF000000),
                   boxShadow: <BoxShadow>[
                     BoxShadow(
                       blurRadius: 16.0,
                       offset: Offset(4, 4),
                       blurStyle: BlurStyle.inner,
-                      color: Colors.amber,
+                      color: kAmber,
                       spreadRadius: 2,
                     ),
                   ],

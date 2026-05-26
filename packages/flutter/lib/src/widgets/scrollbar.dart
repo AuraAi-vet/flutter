@@ -639,8 +639,12 @@ class ScrollbarPainter extends ChangeNotifier implements CustomPainter {
         return;
       }
       // Custom-shaped thumb
-      final Path outerPath = shape!.getOuterPath(_thumbRect!);
-      canvas.drawPath(outerPath, _paintThumb);
+      if (shape!.preferPaintInterior) {
+        shape!.paintInterior(canvas, _thumbRect!, _paintThumb);
+      } else {
+        final Path outerPath = shape!.getOuterPath(_thumbRect!);
+        canvas.drawPath(outerPath, _paintThumb);
+      }
       shape!.paint(canvas, _thumbRect!);
     }
   }
@@ -1473,12 +1477,10 @@ class RawScrollbarState<T extends RawScrollbar> extends State<T> with TickerProv
       return true;
     }
     final ScrollController? scrollController = _effectiveScrollController;
-    final bool tryPrimary = widget.controller == null;
-    final String controllerForError = tryPrimary
-        ? 'PrimaryScrollController'
-        : 'provided ScrollController';
+    final tryPrimary = widget.controller == null;
+    final controllerForError = tryPrimary ? 'PrimaryScrollController' : 'provided ScrollController';
 
-    String when = '';
+    var when = '';
     if (widget.thumbVisibility ?? false) {
       when = 'Scrollbar.thumbVisibility is true';
     } else if (enableGestures) {
@@ -1733,9 +1735,8 @@ class RawScrollbarState<T extends RawScrollbar> extends State<T> with TickerProv
 
     assert(_thumbDrag == null);
     final ScrollPosition position = _cachedController!.position;
-    final RenderBox renderBox =
-        _scrollbarPainterKey.currentContext!.findRenderObject()! as RenderBox;
-    final DragStartDetails details = DragStartDetails(
+    final renderBox = _scrollbarPainterKey.currentContext!.findRenderObject()! as RenderBox;
+    final details = DragStartDetails(
       localPosition: localPosition,
       globalPosition: renderBox.localToGlobal(localPosition),
     );
@@ -1781,9 +1782,8 @@ class RawScrollbarState<T extends RawScrollbar> extends State<T> with TickerProv
       Axis.horizontal => Offset(primaryDelta, 0),
       Axis.vertical => Offset(0, primaryDelta),
     };
-    final RenderBox renderBox =
-        _scrollbarPainterKey.currentContext!.findRenderObject()! as RenderBox;
-    final DragUpdateDetails scrollDetails = DragUpdateDetails(
+    final renderBox = _scrollbarPainterKey.currentContext!.findRenderObject()! as RenderBox;
+    final scrollDetails = DragUpdateDetails(
       delta: delta,
       primaryDelta: primaryDelta,
       globalPosition: renderBox.localToGlobal(localPosition),
@@ -1823,9 +1823,8 @@ class RawScrollbarState<T extends RawScrollbar> extends State<T> with TickerProv
       TargetPlatform.iOS || TargetPlatform.android => -velocity,
       _ => Velocity.zero,
     };
-    final RenderBox renderBox =
-        _scrollbarPainterKey.currentContext!.findRenderObject()! as RenderBox;
-    final DragEndDetails details = DragEndDetails(
+    final renderBox = _scrollbarPainterKey.currentContext!.findRenderObject()! as RenderBox;
+    final details = DragEndDetails(
       localPosition: localPosition,
       globalPosition: renderBox.localToGlobal(localPosition),
       velocity: adjustedVelocity,
@@ -1877,10 +1876,7 @@ class RawScrollbarState<T extends RawScrollbar> extends State<T> with TickerProv
     }
 
     final ScrollableState? state = Scrollable.maybeOf(position.context.notificationContext!);
-    final ScrollIntent intent = ScrollIntent(
-      direction: scrollDirection,
-      type: ScrollIncrementType.page,
-    );
+    final intent = ScrollIntent(direction: scrollDirection, type: ScrollIncrementType.page);
     assert(state != null);
     final double scrollIncrement = ScrollAction.getDirectionalIncrement(state!, intent);
 
@@ -1988,8 +1984,7 @@ class RawScrollbarState<T extends RawScrollbar> extends State<T> with TickerProv
   // to the scrollbar. Ensure that the localPosition is reported consistently,
   // even if the source of the event is a trackpad or a stylus.
   Offset _globalToScrollbar(Offset offset) {
-    final RenderBox renderBox =
-        _scrollbarPainterKey.currentContext!.findRenderObject()! as RenderBox;
+    final renderBox = _scrollbarPainterKey.currentContext!.findRenderObject()! as RenderBox;
     return renderBox.globalToLocal(offset);
   }
 
@@ -2036,11 +2031,13 @@ class RawScrollbarState<T extends RawScrollbar> extends State<T> with TickerProv
         _effectiveScrollController != null &&
         _effectiveScrollController!.positions.length == 1 &&
         _effectiveScrollController!.position.hasContentDimensions &&
-        _effectiveScrollController!.position.maxScrollExtent > 0.0;
+        _effectiveScrollController!.position.maxScrollExtent -
+                _effectiveScrollController!.position.minScrollExtent >
+            precisionErrorTolerance;
   }
 
   Map<Type, GestureRecognizerFactory> get _gestures {
-    final Map<Type, GestureRecognizerFactory> gestures = <Type, GestureRecognizerFactory>{};
+    final gestures = <Type, GestureRecognizerFactory>{};
     if (!_canHandleScrollGestures()) {
       return gestures;
     }
@@ -2283,7 +2280,7 @@ class RawScrollbarState<T extends RawScrollbar> extends State<T> with TickerProv
 }
 
 Offset _getLocalOffset(GlobalKey scrollbarPainterKey, Offset position) {
-  final RenderBox renderBox = scrollbarPainterKey.currentContext!.findRenderObject()! as RenderBox;
+  final renderBox = scrollbarPainterKey.currentContext!.findRenderObject()! as RenderBox;
   return renderBox.globalToLocal(position);
 }
 
@@ -2292,8 +2289,8 @@ bool _isThumbEvent(GlobalKey customPaintKey, PointerEvent event) {
     return false;
   }
 
-  final CustomPaint customPaint = customPaintKey.currentContext!.widget as CustomPaint;
-  final ScrollbarPainter painter = customPaint.foregroundPainter! as ScrollbarPainter;
+  final customPaint = customPaintKey.currentContext!.widget as CustomPaint;
+  final painter = customPaint.foregroundPainter! as ScrollbarPainter;
   final Offset localOffset = _getLocalOffset(customPaintKey, event.position);
   return painter.hitTestOnlyThumbInteractive(localOffset, event.kind);
 }
@@ -2302,8 +2299,8 @@ bool _isTrackEvent(GlobalKey customPaintKey, PointerEvent event) {
   if (customPaintKey.currentContext == null) {
     return false;
   }
-  final CustomPaint customPaint = customPaintKey.currentContext!.widget as CustomPaint;
-  final ScrollbarPainter painter = customPaint.foregroundPainter! as ScrollbarPainter;
+  final customPaint = customPaintKey.currentContext!.widget as CustomPaint;
+  final painter = customPaint.foregroundPainter! as ScrollbarPainter;
   final Offset localOffset = _getLocalOffset(customPaintKey, event.position);
   final PointerDeviceKind kind = event.kind;
   return painter.hitTestInteractive(localOffset, kind) &&

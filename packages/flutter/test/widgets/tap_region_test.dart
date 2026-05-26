@@ -5,12 +5,16 @@
 import 'dart:ui';
 
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'test_page_tester.dart';
+import 'widgets_app_tester.dart';
 
 void main() {
   testWidgets('TapRegionSurface detects outside tap down events', (WidgetTester tester) async {
-    final Set<String> tappedOutside = <String>{};
+    final tappedOutside = <String>{};
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
@@ -84,7 +88,7 @@ void main() {
   });
 
   testWidgets('TapRegionSurface detects outside tap up events', (WidgetTester tester) async {
-    final Set<String> tappedOutside = <String>{};
+    final tappedOutside = <String>{};
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
@@ -150,8 +154,8 @@ void main() {
   });
 
   testWidgets('TapRegionSurface consumes outside taps when asked', (WidgetTester tester) async {
-    final Set<String> tappedOutside = <String>{};
-    int propagatedTaps = 0;
+    final tappedOutside = <String>{};
+    var propagatedTaps = 0;
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
@@ -236,7 +240,7 @@ void main() {
   });
 
   testWidgets('TapRegionSurface detects inside tap down events', (WidgetTester tester) async {
-    final Set<String> tappedInside = <String>{};
+    final tappedInside = <String>{};
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
@@ -310,7 +314,7 @@ void main() {
   });
 
   testWidgets('TapRegionSurface detects inside tap up events', (WidgetTester tester) async {
-    final Set<String> tappedInside = <String>{};
+    final tappedInside = <String>{};
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
@@ -378,10 +382,10 @@ void main() {
   testWidgets('TapRegionSurface detects inside taps correctly with behavior', (
     WidgetTester tester,
   ) async {
-    final Set<String> tappedInside = <String>{};
-    const ValueKey<String> noGroupKey = ValueKey<String>('No Group');
-    const ValueKey<String> group1AKey = ValueKey<String>('Group 1 A');
-    const ValueKey<String> group1BKey = ValueKey<String>('Group 1 B');
+    final tappedInside = <String>{};
+    const noGroupKey = ValueKey<String>('No Group');
+    const group1AKey = ValueKey<String>('Group 1 A');
+    const group1BKey = ValueKey<String>('Group 1 B');
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
@@ -458,7 +462,7 @@ void main() {
   });
 
   testWidgets('Setting the group updates the registration', (WidgetTester tester) async {
-    final Set<String> tappedOutside = <String>{};
+    final tappedOutside = <String>{};
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
@@ -549,7 +553,7 @@ void main() {
   });
 
   testWidgets('TapRegionSurface detects outside right click', (WidgetTester tester) async {
-    final Set<String> tappedOutside = <String>{};
+    final tappedOutside = <String>{};
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
@@ -623,7 +627,7 @@ void main() {
   });
 
   testWidgets('TapRegionSurface detects outside middle click', (WidgetTester tester) async {
-    final Set<String> tappedOutside = <String>{};
+    final tappedOutside = <String>{};
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
@@ -699,8 +703,8 @@ void main() {
   testWidgets('TapRegionSurface consumes outside right click when asked', (
     WidgetTester tester,
   ) async {
-    final Set<String> tappedOutside = <String>{};
-    int propagatedTaps = 0;
+    final tappedOutside = <String>{};
+    var propagatedTaps = 0;
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
@@ -788,8 +792,8 @@ void main() {
   testWidgets('TapRegionSurface consumes outside middle click when asked', (
     WidgetTester tester,
   ) async {
-    final Set<String> tappedOutside = <String>{};
-    int propagatedTaps = 0;
+    final tappedOutside = <String>{};
+    var propagatedTaps = 0;
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
@@ -875,7 +879,7 @@ void main() {
   });
 
   testWidgets('TapRegionSurface detects inside right click', (WidgetTester tester) async {
-    final Set<String> tappedInside = <String>{};
+    final tappedInside = <String>{};
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
@@ -949,7 +953,7 @@ void main() {
   });
 
   testWidgets('TapRegionSurface detects inside middle click', (WidgetTester tester) async {
-    final Set<String> tappedInside = <String>{};
+    final tappedInside = <String>{};
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
@@ -1026,13 +1030,13 @@ void main() {
   testWidgets('TapRegion onTapOutside should only trigger on the current route during navigation', (
     WidgetTester tester,
   ) async {
-    const ValueKey<String> tapRegion1Key = ValueKey<String>('TapRegion');
-    const ValueKey<String> tapRegion2Key = ValueKey<String>('TapRegion2');
+    const tapRegion1Key = ValueKey<String>('TapRegion');
+    const tapRegion2Key = ValueKey<String>('TapRegion2');
 
-    int count1 = 0;
-    int count2 = 0;
+    var count1 = 0;
+    var count2 = 0;
 
-    final TapRegion tapRegion1 = TapRegion(
+    final tapRegion1 = TapRegion(
       key: tapRegion1Key,
       onTapOutside: (PointerEvent event) {
         count1 += 1;
@@ -1041,7 +1045,7 @@ void main() {
       child: const SizedBox.square(dimension: 100),
     );
 
-    final TapRegion tapRegion2 = TapRegion(
+    final tapRegion2 = TapRegion(
       key: tapRegion2Key,
       onTapOutside: (PointerEvent event) {
         count2 += 1;
@@ -1050,30 +1054,35 @@ void main() {
       child: const SizedBox.square(dimension: 100),
     );
 
-    Future<void> tapOutside(WidgetTester tester, Finder regionFinder) async {
-      // Find the RenderBox of the region.
-      final RenderBox renderBox = tester.firstRenderObject(find.byType(Scaffold).last);
-      final Offset outsidePoint = renderBox.localToGlobal(Offset.zero) + const Offset(200, 200);
-
-      await tester.tapAt(outsidePoint);
+    Future<void> tapOutside(WidgetTester tester) async {
+      await tester.tapAt(const Offset(200, 200));
       await tester.pump();
     }
 
+    const fabKey = ValueKey<String>('Fab');
+
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Center(child: tapRegion1),
-          floatingActionButton: FloatingActionButton(
-            onPressed: () {
-              Navigator.push(
-                tester.element(find.byType(FloatingActionButton)),
-                MaterialPageRoute<void>(
-                  builder: (BuildContext context) => Scaffold(body: Center(child: tapRegion2)),
-                ),
-              );
-            },
-            child: const Icon(Icons.add),
-          ),
+      TestWidgetsApp(
+        home: Stack(
+          children: <Widget>[
+            Center(child: tapRegion1),
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: GestureDetector(
+                key: fabKey,
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  Navigator.of(tester.element(find.byKey(fabKey))).push(
+                    TestPage<void>(
+                      child: Center(child: tapRegion2),
+                    ).createRoute(tester.element(find.byKey(fabKey))),
+                  );
+                },
+                child: const SizedBox(width: 56, height: 56),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1081,24 +1090,24 @@ void main() {
     await tester.pumpAndSettle();
 
     // Tap outside the first TapRegion to trigger onTapOutside.
-    await tapOutside(tester, find.byKey(tapRegion1Key));
+    await tapOutside(tester);
     expect(count1, 1);
     expect(count2, 0);
 
-    await tester.tap(find.byType(FloatingActionButton));
+    await tester.tap(find.byKey(fabKey));
     await tester.pumpAndSettle();
 
     // Tap outside the second TapRegion to trigger onTapOutside
-    await tapOutside(tester, find.byKey(tapRegion2Key));
+    await tapOutside(tester);
     expect(count1, 2); // When the Fab is pressed, the first TapRegion is still active.
     expect(count2, 1);
 
     // Back to the first page.
-    Navigator.pop(tester.element(find.byType(Scaffold).last));
+    Navigator.of(tester.element(find.byKey(tapRegion2Key))).pop();
     await tester.pumpAndSettle();
 
     // Tap outside the first TapRegion to trigger onTapOutside
-    await tapOutside(tester, find.byKey(tapRegion1Key));
+    await tapOutside(tester);
     expect(count1, 3);
     expect(count2, 1);
   });
@@ -1107,13 +1116,13 @@ void main() {
   testWidgets('TapRegion on non-current routes should not respond to onTapOutside events', (
     WidgetTester tester,
   ) async {
-    const ValueKey<String> tapRegion1Key = ValueKey<String>('TapRegion1');
-    const ValueKey<String> tapRegion2Key = ValueKey<String>('TapRegion2');
+    const tapRegion1Key = ValueKey<String>('TapRegion1');
+    const tapRegion2Key = ValueKey<String>('TapRegion2');
 
-    int count1 = 0;
-    int count2 = 0;
+    var count1 = 0;
+    var count2 = 0;
 
-    final TapRegion tapRegion1 = TapRegion(
+    final tapRegion1 = TapRegion(
       key: tapRegion1Key,
       onTapOutside: (PointerEvent event) {
         count1 += 1;
@@ -1122,7 +1131,7 @@ void main() {
       child: const SizedBox.square(dimension: 100),
     );
 
-    final TapRegion tapRegion2 = TapRegion(
+    final tapRegion2 = TapRegion(
       key: tapRegion2Key,
       onTapOutside: (PointerEvent event) {
         count2 += 1;
@@ -1131,49 +1140,37 @@ void main() {
       child: const SizedBox.square(dimension: 100),
     );
 
-    Future<void> tapOutside(WidgetTester tester, Finder regionFinder) async {
-      // Find the RenderBox of the region.
-      final RenderBox renderBox = tester.firstRenderObject(find.byType(Scaffold).last);
-      final Offset outsidePoint = renderBox.localToGlobal(Offset.zero) + const Offset(200, 200);
-
-      await tester.tapAt(outsidePoint);
+    Future<void> tapOutside(WidgetTester tester) async {
+      await tester.tapAt(const Offset(200, 200));
       await tester.pump();
     }
 
     await tester.pumpWidget(
-      MaterialApp(
-        initialRoute: '/',
+      TestWidgetsApp(
         routes: <String, WidgetBuilder>{
-          '/': (BuildContext context) => Scaffold(body: Center(child: tapRegion1)),
-          '/second': (BuildContext context) => Scaffold(body: Center(child: tapRegion2)),
-        },
-        onGenerateInitialRoutes: (String initialRouteName) {
-          return <Route<void>>[
-            MaterialPageRoute<void>(
-              builder: (BuildContext context) => Scaffold(body: Center(child: tapRegion1)),
-            ),
-            MaterialPageRoute<void>(
-              builder: (BuildContext context) => Scaffold(body: Center(child: tapRegion2)),
-            ),
-          ];
+          '/': (BuildContext context) => Center(child: tapRegion1),
+          '/second': (BuildContext context) => Center(child: tapRegion2),
         },
       ),
     );
 
     await tester.pumpAndSettle();
+    // Push the second page so tapRegion2 is on top of tapRegion1.
+    Navigator.of(tester.element(find.byKey(tapRegion1Key))).pushNamed('/second');
+    await tester.pumpAndSettle();
 
     // At this point, tapRegion2 is on top of tapRegion1.
     // Tap outside tapRegion2.
-    await tapOutside(tester, find.byKey(tapRegion2Key));
+    await tapOutside(tester);
     expect(count1, 0); // tapRegion1 should not respond.
     expect(count2, 1); // tapRegion2 should respond.
 
     // Now pop the top route to reveal tapRegion1.
-    Navigator.pop(tester.element(find.byType(Scaffold).last));
+    Navigator.of(tester.element(find.byKey(tapRegion2Key))).pop();
     await tester.pumpAndSettle();
 
     // Tap outside tapRegion1.
-    await tapOutside(tester, find.byKey(tapRegion1Key));
+    await tapOutside(tester);
     expect(count1, 1); // tapRegion1 should respond.
     expect(count2, 1); // tapRegion2 should not respond anymore.
   });
@@ -1182,42 +1179,43 @@ void main() {
   testWidgets('TapRegion with consumeOutsideTaps should not consume taps after navigation', (
     WidgetTester tester,
   ) async {
-    const ValueKey<String> tapRegionKey = ValueKey<String>('TapRegion');
-    const ValueKey<String> buttonKey = ValueKey<String>('Button');
+    const tapRegionKey = ValueKey<String>('TapRegion');
+    const buttonKey = ValueKey<String>('Button');
 
-    bool buttonTapped = false;
+    var buttonTapped = false;
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: TapRegion(
-              key: tapRegionKey,
-              consumeOutsideTaps: true,
-              onTapOutside: (PointerEvent event) {},
+      TestWidgetsApp(
+        home: Center(
+          child: TapRegion(
+            key: tapRegionKey,
+            consumeOutsideTaps: true,
+            onTapOutside: (PointerEvent event) {},
+            behavior: HitTestBehavior.opaque,
+            child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              child: GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    tester.element(find.byType(GestureDetector)),
-                    MaterialPageRoute<void>(
-                      builder:
-                          (BuildContext context) => Scaffold(
-                            body: Center(
-                              child: ElevatedButton(
-                                key: buttonKey,
-                                onPressed: () {
-                                  buttonTapped = true;
-                                },
-                                child: const Text('Test Button'),
-                              ),
-                            ),
-                          ),
+              onTap: () {
+                final BuildContext context = tester.element(find.byType(GestureDetector));
+                Navigator.of(context).push(
+                  TestPage<void>(
+                    child: Center(
+                      child: GestureDetector(
+                        key: buttonKey,
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          buttonTapped = true;
+                        },
+                        child: const SizedBox(
+                          width: 120,
+                          height: 48,
+                          child: Center(child: Text('Test Button')),
+                        ),
+                      ),
                     ),
-                  );
-                },
-                child: Container(width: 250.0, height: 250.0, color: Colors.blue),
-              ),
+                  ).createRoute(context),
+                );
+              },
+              child: const SizedBox(width: 250.0, height: 250.0),
             ),
           ),
         ),
@@ -1241,5 +1239,151 @@ void main() {
       true,
       reason: 'Button tap was not consumed by a TapRegion on a non-current route',
     );
+  });
+
+  // Regression test for https://github.com/flutter/flutter/issues/167487.
+  //
+  // When semantics are enabled on web, clicks are delivered as
+  // SemanticsAction.tap rather than pointer events.  TapRegionSurface now
+  // listens to semantics actions so that onTapOutside fires even when the tap
+  // came through the semantics channel.
+  testWidgets('TapRegionSurface calls onTapOutside for semantics tap outside region', (
+    WidgetTester tester,
+  ) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    final outsideCalls = <String>[];
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: TapRegionSurface(
+          child: Row(
+            children: <Widget>[
+              // Button outside the TapRegion.
+              const SizedBox(width: 100, height: 50, child: Text('Outside Button')),
+              TapRegion(
+                onTapOutside: (_) => outsideCalls.add('region'),
+                child: const SizedBox(width: 100, height: 50, child: Text('Inside')),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+
+    // Find the semantics node for the button outside the TapRegion and
+    // simulate a SemanticsAction.tap arriving via the semantics channel.
+    final SemanticsNode outsideNode = tester.semantics.find(
+      find.bySemanticsLabel('Outside Button'),
+    );
+
+    expect(outsideCalls, isEmpty);
+
+    // Deliver the tap via the platform dispatcher, which goes through
+    // SemanticsBinding._handleSemanticsActionEvent and notifies all
+    // addSemanticsActionListener listeners (including TapRegionSurface).
+    tester.binding.platformDispatcher.onSemanticsActionEvent!(
+      SemanticsActionEvent(
+        type: SemanticsAction.tap,
+        nodeId: outsideNode.id,
+        viewId: tester.view.viewId,
+      ),
+    );
+    await tester.pump();
+
+    expect(outsideCalls, equals(<String>['region']));
+    handle.dispose();
+  });
+
+  // Regression test for https://github.com/flutter/flutter/issues/167487.
+  testWidgets('TapRegionSurface does not call onTapOutside for semantics tap inside region', (
+    WidgetTester tester,
+  ) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    final outsideCalls = <String>[];
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: TapRegionSurface(
+          child: Row(
+            children: <Widget>[
+              const SizedBox(width: 100, height: 50, child: Text('Outside')),
+              TapRegion(
+                onTapOutside: (_) => outsideCalls.add('region'),
+                child: const SizedBox(width: 100, height: 50, child: Text('Inside Button')),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+
+    final SemanticsNode insideNode = tester.semantics.find(find.bySemanticsLabel('Inside Button'));
+
+    tester.binding.platformDispatcher.onSemanticsActionEvent!(
+      SemanticsActionEvent(
+        type: SemanticsAction.tap,
+        nodeId: insideNode.id,
+        viewId: tester.view.viewId,
+      ),
+    );
+    await tester.pump();
+
+    // Tap was inside the region; onTapOutside should not fire.
+    expect(outsideCalls, isEmpty);
+    handle.dispose();
+  });
+
+  // Regression test for https://github.com/flutter/flutter/issues/167487.
+  //
+  // SemanticsAction.longPress should also trigger onTapOutside, not just
+  // SemanticsAction.tap.
+  testWidgets('TapRegionSurface calls onTapOutside for semantics longPress outside region', (
+    WidgetTester tester,
+  ) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    final outsideCalls = <String>[];
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: TapRegionSurface(
+          child: Row(
+            children: <Widget>[
+              const SizedBox(width: 100, height: 50, child: Text('Outside LongPress')),
+              TapRegion(
+                onTapOutside: (_) => outsideCalls.add('region'),
+                child: const SizedBox(width: 100, height: 50, child: Text('Inside')),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+
+    final SemanticsNode outsideNode = tester.semantics.find(
+      find.bySemanticsLabel('Outside LongPress'),
+    );
+
+    expect(outsideCalls, isEmpty);
+
+    tester.binding.platformDispatcher.onSemanticsActionEvent!(
+      SemanticsActionEvent(
+        type: SemanticsAction.longPress,
+        nodeId: outsideNode.id,
+        viewId: tester.view.viewId,
+      ),
+    );
+    await tester.pump();
+
+    expect(outsideCalls, equals(<String>['region']));
+    handle.dispose();
   });
 }

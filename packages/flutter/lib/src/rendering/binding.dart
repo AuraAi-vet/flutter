@@ -10,7 +10,7 @@
 library;
 
 import 'dart:async';
-import 'dart:ui' as ui show PictureRecorder, SceneBuilder, SemanticsUpdate;
+import 'dart:ui' as ui show PictureRecorder, Rect, SceneBuilder, SemanticsUpdate;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -402,7 +402,7 @@ mixin RendererBinding
   @protected
   @visibleForTesting
   void handleMetricsChanged() {
-    bool forceFrame = false;
+    var forceFrame = false;
     for (final RenderView view in renderViews) {
       forceFrame = forceFrame || view.child != null;
       view.configuration = createViewConfigurationFor(view);
@@ -455,7 +455,7 @@ mixin RendererBinding
     _mouseTracker =
         tracker ??
         MouseTracker((Offset position, int viewId) {
-          final HitTestResult result = HitTestResult();
+          final result = HitTestResult();
           hitTestInView(result, position, viewId);
           return result;
         });
@@ -485,10 +485,73 @@ mixin RendererBinding
     );
   }
 
+  @override
+  ui.Rect? getRectOfSemanticsNodeInViewCoordinates(int viewId, int nodeId) {
+    final RenderView? renderView = _viewIdToRenderView[viewId];
+    assert(
+      renderView != null,
+      'getRectOfSemanticsNodeInViewCoordinates was called for unknown view $viewId.',
+    );
+    if (renderView == null) {
+      return null;
+    }
+
+    final SemanticsOwner? semanticsOwner = renderView.owner?.semanticsOwner;
+    assert(
+      semanticsOwner != null,
+      'getRectOfSemanticsNodeInViewCoordinates was called for view $viewId, but the view does not have a '
+      'SemanticsOwner. Semantics must be enabled for the lookup to succeed.',
+    );
+    if (semanticsOwner == null) {
+      return null;
+    }
+
+    final SemanticsNode? node = semanticsOwner.getSemanticsNode(nodeId);
+    assert(
+      node != null,
+      'getRectOfSemanticsNodeInViewCoordinates was called for unknown node $nodeId in view $viewId.',
+    );
+    if (node == null) {
+      return null;
+    }
+
+    var transform = Matrix4.identity();
+    SemanticsNode? current = node;
+    while (current != null) {
+      if (current.transform != null) {
+        transform = current.transform! * transform as Matrix4;
+      }
+      current = current.parent;
+    }
+
+    // The walk above accumulates RenderView's root transform, which scales
+    // from logical to physical pixels. Undo it with the same matrix the
+    // framework applied, so the result is in logical pixels regardless of
+    // what that matrix encodes.
+    final rootInverse = Matrix4.copy(renderView.configuration.toMatrix())..invert();
+    transform = rootInverse * transform as Matrix4;
+
+    return MatrixUtils.transformRect(transform, node.rect);
+  }
+
   void _handleWebFirstFrame(Duration _) {
     assert(kIsWeb);
-    const MethodChannel methodChannel = MethodChannel('flutter/service_worker');
-    methodChannel.invokeMethod<void>('first-frame');
+    const methodChannel = MethodChannel('flutter/service_worker');
+    methodChannel
+        .invokeMethod<void>('first-frame')
+        .then(
+          (_) {},
+          onError: (Object error, StackTrace stack) {
+            FlutterError.reportError(
+              FlutterErrorDetails(
+                exception: error,
+                stack: stack,
+                library: 'rendering library',
+                context: ErrorDescription('while sending the first-frame event'),
+              ),
+            );
+          },
+        );
   }
 
   void _handlePersistentFrameCallback(Duration timeStamp) {
@@ -717,18 +780,18 @@ String _debugCollectSemanticsTrees(DebugSemanticsDumpOrder childOrder) {
   if (RendererBinding.instance.renderViews.isEmpty) {
     return 'No render tree root was added to the binding.';
   }
-  const String explanation =
+  const explanation =
       'For performance reasons, the framework only generates semantics when asked to do so by the platform.\n'
       'Usually, platforms only ask for semantics when assistive technologies (like screen readers) are running.\n'
       'To generate semantics, try turning on an assistive technology (like VoiceOver or TalkBack) on your device.';
-  final List<String> trees = <String>[];
-  bool printedExplanation = false;
+  final trees = <String>[];
+  var printedExplanation = false;
   for (final RenderView renderView in RendererBinding.instance.renderViews) {
     final String? tree = renderView.debugSemantics?.toStringDeep(childOrder: childOrder);
     if (tree != null) {
       trees.add(tree);
     } else {
-      String message = 'Semantics not generated for $renderView.';
+      var message = 'Semantics not generated for $renderView.';
       if (!printedExplanation) {
         printedExplanation = true;
         message = '$message\n$explanation';

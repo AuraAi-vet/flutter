@@ -22,55 +22,46 @@ void testMain() {
     setUpCanvasKitTest();
 
     test('Sweep gradient', () {
-      final CkGradientSweep gradient =
-          ui.Gradient.sweep(ui.Offset.zero, testColors) as CkGradientSweep;
+      final gradient = ui.Gradient.sweep(ui.Offset.zero, testColors) as CkGradientSweep;
       expect(gradient.getSkShader(ui.FilterQuality.none), isNotNull);
     });
 
     test('Linear gradient', () {
-      final CkGradientLinear gradient =
+      final gradient =
           ui.Gradient.linear(ui.Offset.zero, const ui.Offset(0, 1), testColors) as CkGradientLinear;
       expect(gradient.getSkShader(ui.FilterQuality.none), isNotNull);
     });
 
     test('Radial gradient', () {
-      final CkGradientRadial gradient =
-          ui.Gradient.radial(ui.Offset.zero, 10, testColors) as CkGradientRadial;
+      final gradient = ui.Gradient.radial(ui.Offset.zero, 10, testColors) as CkGradientRadial;
       expect(gradient.getSkShader(ui.FilterQuality.none), isNotNull);
     });
 
     test('Conical gradient', () {
-      final CkGradientConical gradient =
-          ui.Gradient.radial(
-                ui.Offset.zero,
-                10,
-                testColors,
-                null,
-                ui.TileMode.clamp,
-                null,
-                const ui.Offset(10, 10),
-                40,
-              )
-              as CkGradientConical;
+      final gradient = ui.Gradient.radial(
+        ui.Offset.zero,
+        10,
+        testColors,
+        null,
+        ui.TileMode.clamp,
+        null,
+        const ui.Offset(10, 10),
+        40,
+      ) as CkGradientConical;
       expect(gradient.getSkShader(ui.FilterQuality.none), isNotNull);
     });
 
-    test('Image shader initialize/dispose cycle', () {
-      final SkImage skImage = canvasKit.MakeAnimatedImageFromEncoded(
-        kTransparentImage,
-      )!.makeImageAtCurrentFrame();
-      final CkImage image = CkImage(skImage);
-      final CkImageShader imageShader =
-          ui.ImageShader(
-                image,
-                ui.TileMode.clamp,
-                ui.TileMode.repeated,
-                Float64List.fromList(Matrix4.diagonal3Values(1, 2, 3).storage),
-              )
-              as CkImageShader;
+    test('Image shader initialize/dispose cycle', () async {
+      final CkImage image = await createImageFromBytes(kTransparentImage);
+      final imageShader = ui.ImageShader(
+        image,
+        ui.TileMode.clamp,
+        ui.TileMode.repeated,
+        Float64List.fromList(Matrix4.diagonal3Values(1, 2, 3).storage),
+      ) as CkImageShader;
       expect(imageShader, isA<CkImageShader>());
 
-      final UniqueRef<SkShader> ref = imageShader.ref!;
+      final CkUniqueRef<SkShader> ref = imageShader.ref!;
       expect(imageShader.debugDisposed, false);
       expect(imageShader.getSkShader(ui.FilterQuality.none), same(ref.nativeObject));
       expect(ref.isDisposed, false);
@@ -82,34 +73,29 @@ void testMain() {
       expect(image.debugDisposed, true);
     });
 
-    test('Image shader withQuality', () {
-      final SkImage skImage = canvasKit.MakeAnimatedImageFromEncoded(
-        kTransparentImage,
-      )!.makeImageAtCurrentFrame();
-      final CkImage image = CkImage(skImage);
-      final CkImageShader imageShader =
-          ui.ImageShader(
-                image,
-                ui.TileMode.clamp,
-                ui.TileMode.repeated,
-                Float64List.fromList(Matrix4.diagonal3Values(1, 2, 3).storage),
-              )
-              as CkImageShader;
+    test('Image shader withQuality', () async {
+      final CkImage image = await createImageFromBytes(kTransparentImage);
+      final imageShader = ui.ImageShader(
+        image,
+        ui.TileMode.clamp,
+        ui.TileMode.repeated,
+        Float64List.fromList(Matrix4.diagonal3Values(1, 2, 3).storage),
+      ) as CkImageShader;
       expect(imageShader, isA<CkImageShader>());
 
-      final UniqueRef<SkShader> ref1 = imageShader.ref!;
+      final CkUniqueRef<SkShader> ref1 = imageShader.ref!;
       expect(imageShader.getSkShader(ui.FilterQuality.none), same(ref1.nativeObject));
 
       // Request the same quality as the default quality (none).
       expect(imageShader.getSkShader(ui.FilterQuality.none), isNotNull);
-      final UniqueRef<SkShader> ref2 = imageShader.ref!;
+      final CkUniqueRef<SkShader> ref2 = imageShader.ref!;
       expect(ref1, same(ref2));
       expect(ref1.isDisposed, false);
       expect(image.debugDisposed, false);
 
       // Change quality to medium.
       expect(imageShader.getSkShader(ui.FilterQuality.medium), isNotNull);
-      final UniqueRef<SkShader> ref3 = imageShader.ref!;
+      final CkUniqueRef<SkShader> ref3 = imageShader.ref!;
       expect(ref1, isNot(same(ref3)));
       expect(
         ref1.isDisposed,
@@ -121,7 +107,7 @@ void testMain() {
 
       // Ask for medium again.
       expect(imageShader.getSkShader(ui.FilterQuality.medium), isNotNull);
-      final UniqueRef<SkShader> ref4 = imageShader.ref!;
+      final CkUniqueRef<SkShader> ref4 = imageShader.ref!;
       expect(ref4, same(ref3));
       expect(ref3.isDisposed, false);
       expect(image.debugDisposed, false);
@@ -135,53 +121,44 @@ void testMain() {
       expect(image.debugDisposed, true);
     });
 
-    test('isGradient', () {
-      final CkGradientSweep sweepGradient =
-          ui.Gradient.sweep(ui.Offset.zero, testColors) as CkGradientSweep;
+    test('isGradient', () async {
+      final sweepGradient = ui.Gradient.sweep(ui.Offset.zero, testColors) as CkGradientSweep;
       expect(sweepGradient.isGradient, isTrue);
       sweepGradient.dispose();
 
-      final CkGradientLinear linearGradient =
+      final linearGradient =
           ui.Gradient.linear(ui.Offset.zero, const ui.Offset(0, 1), testColors) as CkGradientLinear;
       expect(linearGradient.isGradient, isTrue);
       linearGradient.dispose();
 
-      final CkGradientRadial radialGradient =
-          ui.Gradient.radial(ui.Offset.zero, 10, testColors) as CkGradientRadial;
+      final radialGradient = ui.Gradient.radial(ui.Offset.zero, 10, testColors) as CkGradientRadial;
       expect(radialGradient.isGradient, isTrue);
       radialGradient.dispose();
 
-      final CkGradientConical conicalGradient =
-          ui.Gradient.radial(
-                ui.Offset.zero,
-                10,
-                testColors,
-                null,
-                ui.TileMode.clamp,
-                null,
-                const ui.Offset(10, 10),
-                40,
-              )
-              as CkGradientConical;
+      final conicalGradient = ui.Gradient.radial(
+        ui.Offset.zero,
+        10,
+        testColors,
+        null,
+        ui.TileMode.clamp,
+        null,
+        const ui.Offset(10, 10),
+        40,
+      ) as CkGradientConical;
       expect(conicalGradient.isGradient, isTrue);
       conicalGradient.dispose();
 
-      final SkImage skImage = canvasKit.MakeAnimatedImageFromEncoded(
-        kTransparentImage,
-      )!.makeImageAtCurrentFrame();
-      final CkImage image = CkImage(skImage);
-      final CkImageShader imageShader =
-          ui.ImageShader(
-                image,
-                ui.TileMode.clamp,
-                ui.TileMode.repeated,
-                Float64List.fromList(Matrix4.diagonal3Values(1, 2, 3).storage),
-              )
-              as CkImageShader;
+      final CkImage image = await createImageFromBytes(kTransparentImage);
+      final imageShader = ui.ImageShader(
+        image,
+        ui.TileMode.clamp,
+        ui.TileMode.repeated,
+        Float64List.fromList(Matrix4.diagonal3Values(1, 2, 3).storage),
+      ) as CkImageShader;
       expect(imageShader.isGradient, isFalse);
       imageShader.dispose();
 
-      const String minimalShaderJson = r'''
+      const minimalShaderJson = r'''
 {
   "sksl": {
     "entrypoint": "main",
@@ -192,8 +169,8 @@ void testMain() {
 }
 ''';
       final Uint8List data = utf8.encode(minimalShaderJson);
-      final CkFragmentProgram program = CkFragmentProgram.fromBytes('test', data);
-      final CkFragmentShader fragmentShader = program.fragmentShader() as CkFragmentShader;
+      final program = CkFragmentProgram.fromBytes('test', data);
+      final fragmentShader = program.fragmentShader() as CkFragmentShader;
       expect(fragmentShader.isGradient, isFalse);
       fragmentShader.dispose();
     });

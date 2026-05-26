@@ -2,14 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:flutter/material.dart';
+import 'package:flutter/animation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'rendering_tester.dart';
 
 int countSemanticsChildren(RenderObject object) {
-  int count = 0;
+  var count = 0;
   object.visitChildrenForSemantics((RenderObject child) {
     count += 1;
   });
@@ -20,7 +20,7 @@ void main() {
   TestRenderingFlutterBinding.ensureInitialized();
 
   test('RenderOpacity and children and semantics', () {
-    final RenderOpacity box = RenderOpacity(
+    final box = RenderOpacity(
       child: RenderParagraph(const TextSpan(), textDirection: TextDirection.ltr),
     );
     expect(countSemanticsChildren(box), 1);
@@ -39,8 +39,8 @@ void main() {
   });
 
   test('RenderOpacity and children and semantics', () {
-    final AnimationController controller = AnimationController(vsync: const TestVSync());
-    final RenderAnimatedOpacity box = RenderAnimatedOpacity(
+    final controller = AnimationController(vsync: const TestVSync());
+    final box = RenderAnimatedOpacity(
       opacity: controller,
       child: RenderParagraph(const TextSpan(), textDirection: TextDirection.ltr),
     );

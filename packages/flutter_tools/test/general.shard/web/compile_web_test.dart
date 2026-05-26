@@ -9,7 +9,6 @@ import 'package:flutter_tools/src/build_system/build_system.dart';
 import 'package:flutter_tools/src/build_system/targets/web.dart';
 import 'package:flutter_tools/src/dart/pub.dart';
 import 'package:flutter_tools/src/project.dart';
-import 'package:flutter_tools/src/reporting/reporting.dart';
 import 'package:flutter_tools/src/web/compile.dart';
 import 'package:flutter_tools/src/web/file_generators/flutter_service_worker_js.dart';
 import 'package:unified_analytics/unified_analytics.dart';
@@ -23,7 +22,6 @@ import '../../src/throwing_pub.dart';
 
 void main() {
   late MemoryFileSystem fileSystem;
-  late TestUsage testUsage;
   late FakeAnalytics fakeAnalytics;
   late BufferLogger logger;
   late FakeFlutterVersion flutterVersion;
@@ -31,7 +29,6 @@ void main() {
 
   setUp(() {
     fileSystem = MemoryFileSystem.test();
-    testUsage = TestUsage();
     logger = BufferLogger.test();
     flutterVersion = FakeFlutterVersion(frameworkVersion: '1.0.0', engineRevision: '9.8.7');
     fakeAnalytics = getInitializedFakeAnalyticsInstance(
@@ -127,6 +124,91 @@ environement:
   );
 
   testUsingContext(
+    'WebBuilder prints deprecation warning for --pwa-strategy',
+    () async {
+      final buildSystem = TestBuildSystem.all(BuildResult(success: true), (
+        Target target,
+        Environment environment,
+      ) {
+        expect(target, isA<WebServiceWorker>());
+        expect(
+          environment.defines,
+          containsPair('ServiceWorkerStrategy', ServiceWorkerStrategy.offlineFirst.cliName),
+        );
+      });
+
+      final webBuilder = WebBuilder(
+        logger: logger,
+        processManager: FakeProcessManager.any(),
+        buildSystem: buildSystem,
+        flutterVersion: flutterVersion,
+        fileSystem: fileSystem,
+        analytics: fakeAnalytics,
+      );
+      await webBuilder.buildWeb(
+        flutterProject,
+        'target',
+        BuildInfo.debug,
+        ServiceWorkerStrategy.offlineFirst,
+        compilerConfigs: <WebCompilerConfig>[],
+      );
+
+      expect(logger.statusText, contains('Compiling target for the Web...'));
+      expect(
+        logger.warningText,
+        contains(
+          'The --pwa-strategy option is deprecated and will be removed in a future Flutter release.',
+        ),
+      );
+      expect(logger.errorText, isEmpty);
+    },
+    overrides: <Type, Generator>{
+      ProcessManager: () => FakeProcessManager.any(),
+      Pub: ThrowingPub.new,
+    },
+  );
+
+  testUsingContext(
+    'WebBuilder skips deprecation warning when --pwa-strategy is omitted',
+    () async {
+      final buildSystem = TestBuildSystem.all(BuildResult(success: true), (
+        Target target,
+        Environment environment,
+      ) {
+        expect(target, isA<WebServiceWorker>());
+        expect(
+          environment.defines,
+          containsPair('ServiceWorkerStrategy', ServiceWorkerStrategy.offlineFirst.cliName),
+        );
+      });
+
+      final webBuilder = WebBuilder(
+        logger: logger,
+        processManager: FakeProcessManager.any(),
+        buildSystem: buildSystem,
+        flutterVersion: flutterVersion,
+        fileSystem: fileSystem,
+        analytics: fakeAnalytics,
+      );
+      await webBuilder.buildWeb(
+        flutterProject,
+        'target',
+        BuildInfo.debug,
+        null, // serviceWorkerStrategy is omitted
+        compilerConfigs: <WebCompilerConfig>[],
+      );
+
+      expect(logger.statusText, contains('Compiling target for the Web...'));
+      expect(logger.warningText, isNot(contains('--pwa-strategy')));
+      expect(logger.errorText, isEmpty);
+    },
+    overrides: <Type, Generator>{
+      ProcessManager: () => FakeProcessManager.any(),
+      Pub: ThrowingPub.new,
+    },
+  );
+
+  testUsingContext(
     'WebBuilder throws tool exit on failure',
     () async {
       final buildSystem = TestBuildSystem.all(
@@ -170,7 +252,6 @@ environement:
         logger.errorText,
         contains('Target hello failed: FormatException: illegal character in input string'),
       );
-      expect(testUsage.timings, isEmpty);
       expect(fakeAnalytics.sentEvents, isEmpty);
     },
     overrides: <Type, Generator>{

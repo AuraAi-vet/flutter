@@ -2,13 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets('gets local coordinates', (WidgetTester tester) async {
-    final List<ScaleStartDetails> startDetails = <ScaleStartDetails>[];
-    final List<ScaleUpdateDetails> updateDetails = <ScaleUpdateDetails>[];
+    final startDetails = <ScaleStartDetails>[];
+    final updateDetails = <ScaleUpdateDetails>[];
 
     final Key redContainer = UniqueKey();
     await tester.pumpWidget(
@@ -20,7 +20,12 @@ void main() {
           onScaleUpdate: (ScaleUpdateDetails details) {
             updateDetails.add(details);
           },
-          child: Container(key: redContainer, width: 100, height: 100, color: Colors.red),
+          child: Container(
+            key: redContainer,
+            width: 100,
+            height: 100,
+            color: const Color(0xFFFF0000),
+          ),
         ),
       ),
     );

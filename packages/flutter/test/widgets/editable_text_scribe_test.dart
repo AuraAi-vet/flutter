@@ -5,17 +5,21 @@
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'widgets_app_tester.dart';
+
+const Color _grey = Color(0xFF888888);
 
 void main() {
   final TestWidgetsFlutterBinding binding = TestWidgetsFlutterBinding.ensureInitialized();
 
-  const TextStyle textStyle = TextStyle();
-  const Color cursorColor = Color.fromARGB(0xFF, 0xFF, 0x00, 0x00);
-  final List<MethodCall> calls = <MethodCall>[];
-  bool isFeatureAvailableReturnValue = true;
+  const textStyle = TextStyle();
+  const cursorColor = Color.fromARGB(0xFF, 0xFF, 0x00, 0x00);
+  final calls = <MethodCall>[];
+  var isFeatureAvailableReturnValue = true;
   late TextEditingController controller;
   late FocusNode focusNode;
 
@@ -48,30 +52,27 @@ void main() {
     bool forcePressEnabled = true,
     bool selectionEnabled = true,
   }) async {
-    final GlobalKey<EditableTextState> editableTextKey = GlobalKey<EditableTextState>();
-    final FakeTextSelectionGestureDetectorBuilderDelegate delegate =
-        FakeTextSelectionGestureDetectorBuilderDelegate(
-          editableTextKey: editableTextKey,
-          forcePressEnabled: forcePressEnabled,
-          selectionEnabled: selectionEnabled,
-        );
-
-    final TextSelectionGestureDetectorBuilder provider = TextSelectionGestureDetectorBuilder(
-      delegate: delegate,
+    final editableTextKey = GlobalKey<EditableTextState>();
+    final delegate = FakeTextSelectionGestureDetectorBuilderDelegate(
+      editableTextKey: editableTextKey,
+      forcePressEnabled: forcePressEnabled,
+      selectionEnabled: selectionEnabled,
     );
 
+    final provider = TextSelectionGestureDetectorBuilder(delegate: delegate);
+
     await tester.pumpWidget(
-      MaterialApp(
+      TestWidgetsApp(
         home: provider.buildGestureDetector(
           behavior: HitTestBehavior.translucent,
           child: EditableText(
             key: editableTextKey,
             controller: controller,
-            backgroundCursorColor: Colors.grey,
+            backgroundCursorColor: _grey,
             focusNode: focusNode,
             style: textStyle,
             cursorColor: cursorColor,
-            selectionControls: materialTextSelectionControls,
+            selectionControls: _visibleHandleControls,
             showSelectionHandles: true,
           ),
         ),
@@ -251,6 +252,39 @@ void main() {
     variant: const TargetPlatformVariant(<TargetPlatform>{TargetPlatform.android}),
   );
 }
+
+/// Selection controls that render visible handles using [CustomPaint],
+/// needed for tests that interact with handles by finding [CustomPaint]
+/// descendants of [CompositedTransformFollower].
+class _VisibleHandleControls extends TextSelectionControls with TextSelectionHandleControls {
+  @override
+  Widget buildHandle(
+    BuildContext context,
+    TextSelectionHandleType type,
+    double textLineHeight, [
+    VoidCallback? onTap,
+  ]) {
+    return SizedBox(width: 20, height: 20, child: CustomPaint(painter: _HandlePainter()));
+  }
+
+  @override
+  Offset getHandleAnchor(TextSelectionHandleType type, double textLineHeight) => Offset.zero;
+
+  @override
+  Size getHandleSize(double textLineHeight) => const Size(20, 20);
+}
+
+class _HandlePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFF000000));
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+final TextSelectionControls _visibleHandleControls = _VisibleHandleControls();
 
 class FakeTextSelectionGestureDetectorBuilderDelegate
     implements TextSelectionGestureDetectorBuilderDelegate {

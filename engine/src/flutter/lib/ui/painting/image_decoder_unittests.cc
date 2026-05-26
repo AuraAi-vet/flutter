@@ -3,10 +3,12 @@
 // found in the LICENSE file.
 
 #include "flutter/common/task_runners.h"
+#include "flutter/display_list/image/dl_image_skia.h"
 #include "flutter/fml/mapping.h"
 #include "flutter/fml/synchronization/waitable_event.h"
 #include "flutter/impeller/core/allocator.h"
 #include "flutter/impeller/core/device_buffer.h"
+#include "flutter/impeller/display_list/dl_image_impeller.h"
 #include "flutter/impeller/geometry/size.h"
 #include "flutter/impeller/renderer/context.h"
 #include "flutter/lib/ui/painting/image_decoder.h"
@@ -26,7 +28,9 @@
 #include "fml/logging.h"
 #include "impeller/core/runtime_types.h"
 #include "impeller/renderer/command_queue.h"
+#include "third_party/skia/include/codec/SkCodec.h"
 #include "third_party/skia/include/codec/SkCodecAnimation.h"
+#include "third_party/skia/include/codec/SkJpegDecoder.h"
 #include "third_party/skia/include/core/SkData.h"
 #include "third_party/skia/include/core/SkImage.h"
 #include "third_party/skia/include/core/SkImageInfo.h"
@@ -77,6 +81,10 @@ class TestImpellerContext : public impeller::Context {
     command_buffer_count_ += 1;
     return nullptr;
   }
+
+  // A stub returning false is allowed from implementations that are not
+  // planned to be used in benchmarking situations.
+  bool FinishQueue() override { return false; }
 
   void StoreTaskForGPU(const std::function<void()>& task,
                        const std::function<void()>& failure) override {
@@ -289,7 +297,8 @@ TEST_F(ImageDecoderFixtureTest, InvalidImageResultsError) {
       ASSERT_FALSE(image);
       latch.Signal();
     };
-    decoder->Decode(image_descriptor, 0, 0, callback);
+    decoder->Decode(image_descriptor, {.target_width = 0, .target_height = 0},
+                    callback);
   });
   latch.Wait();
 }
@@ -333,13 +342,18 @@ TEST_F(ImageDecoderFixtureTest, ValidImageResultsInSuccess) {
     ImageDecoder::ImageResult callback = [&](const sk_sp<DlImage>& image,
                                              const std::string& decode_error) {
       ASSERT_TRUE(runners.GetUITaskRunner()->RunsTasksOnCurrentThread());
-      ASSERT_TRUE(image && image->skia_image());
+      auto skia_image = image ? image->asSkiaImage() : nullptr;
+      ASSERT_TRUE(skia_image && skia_image->skia_image());
       EXPECT_TRUE(io_manager->did_access_is_gpu_disabled_sync_switch_);
       runners.GetIOTaskRunner()->PostTask(release_io_manager);
     };
+
     EXPECT_FALSE(io_manager->did_access_is_gpu_disabled_sync_switch_);
-    image_decoder->Decode(descriptor, descriptor->width(), descriptor->height(),
-                          callback);
+    image_decoder->Decode(
+        descriptor,
+        {.target_width = static_cast<uint32_t>(descriptor->width()),
+         .target_height = static_cast<uint32_t>(descriptor->height())},
+        callback);
   };
 
   auto set_up_io_manager_and_decode = [&]() {
@@ -362,6 +376,10 @@ TEST_F(ImageDecoderFixtureTest, ImpellerUploadToSharedNoGpu) {
 
   auto info = SkImageInfo::Make(10, 10, SkColorType::kRGBA_8888_SkColorType,
                                 SkAlphaType::kPremul_SkAlphaType);
+  ImageDecoderImpeller::ImageInfo decoder_info = {
+      .size = impeller::ISize(10, 10),
+      .format = impeller::PixelFormat::kR8G8B8A8UNormInt,
+  };
   auto bitmap = std::make_shared<SkBitmap>();
   bitmap->allocPixels(info, 10 * 4);
   impeller::DeviceBufferDescriptor desc;
@@ -373,7 +391,7 @@ TEST_F(ImageDecoderFixtureTest, ImpellerUploadToSharedNoGpu) {
                        const std::string& message) { invoked = true; };
 
   ImageDecoderImpeller::UploadTextureToPrivate(
-      cb, no_gpu_access_context, buffer, info, bitmap, std::nullopt,
+      cb, no_gpu_access_context, buffer, decoder_info, std::nullopt,
       gpu_disabled_switch);
 
   EXPECT_EQ(no_gpu_access_context->command_buffer_count_, 0ul);
@@ -386,9 +404,11 @@ TEST_F(ImageDecoderFixtureTest, ImpellerUploadToSharedNoGpu) {
   ASSERT_EQ(no_gpu_access_context->command_buffer_count_, 0ul);
   ASSERT_EQ(result.second, "");
   EXPECT_EQ(no_gpu_access_context->DidDisposeResources(), true);
-  EXPECT_EQ(
-      result.first->impeller_texture()->GetTextureDescriptor().storage_mode,
-      impeller::StorageMode::kHostVisible);
+  EXPECT_EQ(result.first->asImpellerImage()
+                ->GetImpellerTexture(no_gpu_access_context)
+                ->GetTextureDescriptor()
+                .storage_mode,
+            impeller::StorageMode::kHostVisible);
 
   no_gpu_access_context->FlushTasks(/*fail=*/true);
 }
@@ -405,6 +425,10 @@ TEST_F(ImageDecoderFixtureTest,
 
   auto info = SkImageInfo::Make(10, 10, SkColorType::kRGBA_8888_SkColorType,
                                 SkAlphaType::kPremul_SkAlphaType);
+  ImageDecoderImpeller::ImageInfo decoder_info = {
+      .size = impeller::ISize(10, 10),
+      .format = impeller::PixelFormat::kR8G8B8A8UNormInt,
+  };
   auto bitmap = std::make_shared<SkBitmap>();
   bitmap->allocPixels(info, 10 * 4);
   impeller::DeviceBufferDescriptor desc;
@@ -422,7 +446,7 @@ TEST_F(ImageDecoderFixtureTest,
   };
 
   ImageDecoderImpeller::UploadTextureToPrivate(
-      cb, no_gpu_access_context, buffer, info, bitmap, std::nullopt,
+      cb, no_gpu_access_context, buffer, decoder_info, std::nullopt,
       gpu_disabled_switch);
 
   EXPECT_EQ(no_gpu_access_context->command_buffer_count_, 0ul);
@@ -447,7 +471,8 @@ TEST_F(ImageDecoderFixtureTest, ImpellerNullColorspace) {
   EXPECT_EQ(nullptr, image->colorSpace());
 
   auto descriptor = fml::MakeRefCounted<ImageDescriptor>(
-      std::move(data), image->imageInfo(), 10 * 4);
+      std::move(data), ImageDescriptor::CreateImageInfo(image->imageInfo()),
+      10 * 4);
 
 #if IMPELLER_SUPPORTS_RENDERING
   std::shared_ptr<impeller::Capabilities> capabilities =
@@ -456,14 +481,14 @@ TEST_F(ImageDecoderFixtureTest, ImpellerNullColorspace) {
           .Build();
   std::shared_ptr<impeller::Allocator> allocator =
       std::make_shared<impeller::TestImpellerAllocator>();
-  std::optional<DecompressResult> decompressed =
+  absl::StatusOr<ImageDecoderImpeller::DecompressResult> decompressed =
       ImageDecoderImpeller::DecompressTexture(
-          descriptor.get(), SkISize::Make(100, 100), {100, 100},
+          descriptor.get(), {.target_width = 100, .target_height = 100},
+          {100, 100},
           /*supports_wide_gamut=*/true, capabilities, allocator);
-  ASSERT_TRUE(decompressed.has_value());
-  EXPECT_EQ(decompressed->image_info.colorType(), kRGBA_8888_SkColorType);
-  EXPECT_EQ(decompressed->image_info.colorSpace(),
-            SkColorSpace::MakeSRGB().get());
+  ASSERT_TRUE(decompressed.ok());
+  EXPECT_EQ(decompressed->image_info.format,
+            impeller::PixelFormat::kR8G8B8A8UNormInt);
 #endif  // IMPELLER_SUPPORTS_RENDERING
 }
 
@@ -480,7 +505,8 @@ TEST_F(ImageDecoderFixtureTest, ImpellerPixelConversion32F) {
   EXPECT_EQ(nullptr, image->colorSpace());
 
   auto descriptor = fml::MakeRefCounted<ImageDescriptor>(
-      std::move(data), image->imageInfo(), 10 * 16);
+      std::move(data), ImageDescriptor::CreateImageInfo(image->imageInfo()),
+      10 * 16);
 
 #if IMPELLER_SUPPORTS_RENDERING
   std::shared_ptr<impeller::Capabilities> capabilities =
@@ -489,21 +515,21 @@ TEST_F(ImageDecoderFixtureTest, ImpellerPixelConversion32F) {
           .Build();
   std::shared_ptr<impeller::Allocator> allocator =
       std::make_shared<impeller::TestImpellerAllocator>();
-  std::optional<DecompressResult> decompressed =
+  absl::StatusOr<ImageDecoderImpeller::DecompressResult> decompressed =
       ImageDecoderImpeller::DecompressTexture(
-          descriptor.get(), SkISize::Make(100, 100), {100, 100},
+          descriptor.get(), {.target_width = 100, .target_height = 100},
+          {100, 100},
           /*supports_wide_gamut=*/true, capabilities, allocator);
 
-  ASSERT_TRUE(decompressed.has_value());
-  EXPECT_EQ(decompressed->image_info.colorType(), kRGBA_F16_SkColorType);
-  EXPECT_EQ(decompressed->image_info.colorSpace(),
-            SkColorSpace::MakeSRGB().get());
+  ASSERT_TRUE(decompressed.ok());
+  EXPECT_EQ(decompressed->image_info.format,
+            impeller::PixelFormat::kR16G16B16A16Float);
 #endif  // IMPELLER_SUPPORTS_RENDERING
 }
 
 TEST_F(ImageDecoderFixtureTest, ImpellerWideGamutDisplayP3Opaque) {
   auto data = flutter::testing::OpenFixtureAsSkData("DisplayP3Logo.jpg");
-  auto image = SkImages::DeferredFromEncodedData(data);
+  auto image = SkCodecs::DeferredImage(SkJpegDecoder::Decode(data, nullptr));
   ASSERT_TRUE(image != nullptr);
   ASSERT_EQ(SkISize::Make(100, 100), image->dimensions());
 
@@ -522,19 +548,22 @@ TEST_F(ImageDecoderFixtureTest, ImpellerWideGamutDisplayP3Opaque) {
           .Build();
   std::shared_ptr<impeller::Allocator> allocator =
       std::make_shared<impeller::TestImpellerAllocator>();
-  std::optional<DecompressResult> wide_result =
+  absl::StatusOr<ImageDecoderImpeller::DecompressResult> wide_result =
       ImageDecoderImpeller::DecompressTexture(
-          descriptor.get(), SkISize::Make(100, 100), {100, 100},
+          descriptor.get(), {.target_width = 100, .target_height = 100},
+          {100, 100},
           /*supports_wide_gamut=*/true, capabilities, allocator);
 
-  ASSERT_TRUE(wide_result.has_value());
-  ASSERT_EQ(wide_result->image_info.colorType(), kBGR_101010x_XR_SkColorType);
-  ASSERT_TRUE(wide_result->image_info.colorSpace()->isSRGB());
+  ASSERT_TRUE(wide_result.ok());
+  ASSERT_EQ(wide_result->image_info.format,
+            impeller::PixelFormat::kB10G10R10XR);
 
-  const SkPixmap& wide_pixmap = wide_result->sk_bitmap->pixmap();
-  const uint32_t* pixel_ptr = static_cast<const uint32_t*>(wide_pixmap.addr());
+  const uint32_t* pixel_ptr = reinterpret_cast<const uint32_t*>(
+      wide_result->device_buffer->OnGetContents());
   bool found_deep_red = false;
-  for (int i = 0; i < wide_pixmap.width() * wide_pixmap.height(); ++i) {
+  for (int i = 0; i < wide_result->image_info.size.width *
+                          wide_result->image_info.size.height;
+       ++i) {
     uint32_t pixel = *pixel_ptr++;
     float blue = DecodeBGR10((pixel >> 0) & 0x3ff);
     float green = DecodeBGR10((pixel >> 10) & 0x3ff);
@@ -547,19 +576,21 @@ TEST_F(ImageDecoderFixtureTest, ImpellerWideGamutDisplayP3Opaque) {
   }
   ASSERT_TRUE(found_deep_red);
 
-  std::optional<DecompressResult> narrow_result =
+  absl::StatusOr<ImageDecoderImpeller::DecompressResult> narrow_result =
       ImageDecoderImpeller::DecompressTexture(
-          descriptor.get(), SkISize::Make(100, 100), {100, 100},
+          descriptor.get(), {.target_width = 100, .target_height = 100},
+          {100, 100},
           /*supports_wide_gamut=*/false, capabilities, allocator);
 
-  ASSERT_TRUE(narrow_result.has_value());
-  ASSERT_EQ(narrow_result->image_info.colorType(), kRGBA_8888_SkColorType);
+  ASSERT_TRUE(narrow_result.ok());
+  ASSERT_EQ(narrow_result->image_info.format,
+            impeller::PixelFormat::kR8G8B8A8UNormInt);
 #endif  // IMPELLER_SUPPORTS_RENDERING
 }
 
 TEST_F(ImageDecoderFixtureTest, ImpellerNonWideGamut) {
   auto data = flutter::testing::OpenFixtureAsSkData("Horizontal.jpg");
-  auto image = SkImages::DeferredFromEncodedData(data);
+  auto image = SkCodecs::DeferredImage(SkJpegDecoder::Decode(data, nullptr));
   ASSERT_TRUE(image != nullptr);
   ASSERT_EQ(SkISize::Make(600, 200), image->dimensions());
 
@@ -578,13 +609,15 @@ TEST_F(ImageDecoderFixtureTest, ImpellerNonWideGamut) {
           .Build();
   std::shared_ptr<impeller::Allocator> allocator =
       std::make_shared<impeller::TestImpellerAllocator>();
-  std::optional<DecompressResult> result =
+  absl::StatusOr<ImageDecoderImpeller::DecompressResult> result =
       ImageDecoderImpeller::DecompressTexture(
-          descriptor.get(), SkISize::Make(600, 200), {600, 200},
+          descriptor.get(), {.target_width = 600, .target_height = 200},
+          {600, 200},
           /*supports_wide_gamut=*/true, capabilities, allocator);
 
-  ASSERT_TRUE(result.has_value());
-  ASSERT_EQ(result->image_info.colorType(), kRGBA_8888_SkColorType);
+  ASSERT_TRUE(result.ok());
+  ASSERT_EQ(result->image_info.format,
+            impeller::PixelFormat::kR8G8B8A8UNormInt);
 #endif  // IMPELLER_SUPPORTS_RENDERING
 }
 
@@ -629,12 +662,18 @@ TEST_F(ImageDecoderFixtureTest, ExifDataIsRespectedOnDecode) {
     ImageDecoder::ImageResult callback = [&](const sk_sp<DlImage>& image,
                                              const std::string& decode_error) {
       ASSERT_TRUE(runners.GetUITaskRunner()->RunsTasksOnCurrentThread());
-      ASSERT_TRUE(image && image->skia_image());
-      decoded_size = image->skia_image()->dimensions();
+
+      auto skia_image = image ? image->asSkiaImage() : nullptr;
+      ASSERT_TRUE(skia_image && skia_image->skia_image());
+      decoded_size = skia_image->skia_image()->dimensions();
+
       runners.GetIOTaskRunner()->PostTask(release_io_manager);
     };
-    image_decoder->Decode(descriptor, descriptor->width(), descriptor->height(),
-                          callback);
+    image_decoder->Decode(
+        descriptor,
+        {.target_width = static_cast<uint32_t>(descriptor->width()),
+         .target_height = static_cast<uint32_t>(descriptor->height())},
+        callback);
   };
 
   auto set_up_io_manager_and_decode = [&]() {
@@ -690,11 +729,17 @@ TEST_F(ImageDecoderFixtureTest, CanDecodeWithoutAGPUContext) {
     ImageDecoder::ImageResult callback = [&](const sk_sp<DlImage>& image,
                                              const std::string& decode_error) {
       ASSERT_TRUE(runners.GetUITaskRunner()->RunsTasksOnCurrentThread());
-      ASSERT_TRUE(image && image->skia_image());
+
+      auto skia_image = image ? image->asSkiaImage() : nullptr;
+      ASSERT_TRUE(skia_image && skia_image->skia_image());
+
       runners.GetIOTaskRunner()->PostTask(release_io_manager);
     };
-    image_decoder->Decode(descriptor, descriptor->width(), descriptor->height(),
-                          callback);
+    image_decoder->Decode(
+        descriptor,
+        {.target_width = static_cast<uint32_t>(descriptor->width()),
+         .target_height = static_cast<uint32_t>(descriptor->height())},
+        callback);
   };
 
   auto set_up_io_manager_and_decode = [&]() {
@@ -710,8 +755,9 @@ TEST_F(ImageDecoderFixtureTest, CanDecodeWithoutAGPUContext) {
 
 TEST_F(ImageDecoderFixtureTest, CanDecodeWithResizes) {
   const auto image_dimensions =
-      SkImages::DeferredFromEncodedData(
-          flutter::testing::OpenFixtureAsSkData("DashInNooglerHat.jpg"))
+      SkJpegDecoder::Decode(
+          flutter::testing::OpenFixtureAsSkData("DashInNooglerHat.jpg"),
+          nullptr)
           ->dimensions();
 
   ASSERT_FALSE(image_dimensions.isEmpty());
@@ -764,11 +810,16 @@ TEST_F(ImageDecoderFixtureTest, CanDecodeWithResizes) {
       ImageDecoder::ImageResult callback =
           [&](const sk_sp<DlImage>& image, const std::string& decode_error) {
             ASSERT_TRUE(runners.GetUITaskRunner()->RunsTasksOnCurrentThread());
-            ASSERT_TRUE(image && image->skia_image());
-            final_size = image->skia_image()->dimensions();
+            auto skia_image = image ? image->asSkiaImage() : nullptr;
+            ASSERT_TRUE(skia_image && skia_image->skia_image());
+            final_size = skia_image->skia_image()->dimensions();
+
             latch.Signal();
           };
-      image_decoder->Decode(descriptor, target_width, target_height, callback);
+      image_decoder->Decode(
+          descriptor,
+          {.target_width = target_width, .target_height = target_height},
+          callback);
     });
     latch.Wait();
     return final_size;
@@ -811,7 +862,9 @@ TEST(ImageDecoderTest,
 
 TEST(ImageDecoderTest, VerifySimpleDecoding) {
   auto data = flutter::testing::OpenFixtureAsSkData("Horizontal.jpg");
-  auto image = SkImages::DeferredFromEncodedData(data);
+  auto codec = SkJpegDecoder::Decode(data, nullptr);
+  ASSERT_TRUE(codec != nullptr);
+  auto image = SkCodecs::DeferredImage(std::move(codec));
   ASSERT_TRUE(image != nullptr);
   EXPECT_EQ(600, image->width());
   EXPECT_EQ(200, image->height());
@@ -843,33 +896,37 @@ TEST(ImageDecoderTest, VerifySimpleDecoding) {
   std::shared_ptr<impeller::Allocator> allocator =
       std::make_shared<impeller::TestImpellerAllocator>();
   auto result_1 = ImageDecoderImpeller::DecompressTexture(
-      descriptor.get(), SkISize::Make(6, 2), {1000, 1000},
+      descriptor.get(), {.target_width = 6, .target_height = 2}, {1000, 1000},
       /*supports_wide_gamut=*/false, capabilities, allocator);
-  EXPECT_EQ(result_1.sk_bitmap->width(), 75);
-  EXPECT_EQ(result_1.sk_bitmap->height(), 25);
+  ASSERT_TRUE(result_1.ok());
+  EXPECT_EQ(result_1->image_info.size.width, 75);
+  EXPECT_EQ(result_1->image_info.size.height, 25);
 
   // Bitmap sizes reflect the scaled size if the source size is larger than
   // max texture size even if destination size isn't max texture size.
   auto result_2 = ImageDecoderImpeller::DecompressTexture(
-      descriptor.get(), SkISize::Make(6, 2), {10, 10},
+      descriptor.get(), {.target_width = 6, .target_height = 2}, {10, 10},
       /*supports_wide_gamut=*/false, capabilities, allocator);
-  EXPECT_EQ(result_2.sk_bitmap->width(), 6);
-  EXPECT_EQ(result_2.sk_bitmap->height(), 2);
+  ASSERT_TRUE(result_2.ok());
+  EXPECT_EQ(result_2->image_info.size.width, 6);
+  EXPECT_EQ(result_2->image_info.size.height, 2);
 
   // If the destination size is larger than the max texture size the image
   // is scaled down.
   auto result_3 = ImageDecoderImpeller::DecompressTexture(
-      descriptor.get(), SkISize::Make(60, 20), {10, 10},
+      descriptor.get(), {.target_width = 60, .target_height = 20}, {10, 10},
       /*supports_wide_gamut=*/false, capabilities, allocator);
-  EXPECT_EQ(result_3.sk_bitmap->width(), 10);
-  EXPECT_EQ(result_3.sk_bitmap->height(), 10);
+  ASSERT_TRUE(result_3.ok());
+  EXPECT_EQ(result_3->image_info.size.width, 10);
+  EXPECT_EQ(result_3->image_info.size.height, 10);
 
   // CPU resize is forced.
   auto result_4 = ImageDecoderImpeller::DecompressTexture(
-      descriptor.get(), SkISize::Make(6, 2), {1000, 1000},
+      descriptor.get(), {.target_width = 6, .target_height = 2}, {1000, 1000},
       /*supports_wide_gamut=*/false, capabilities_no_blit, allocator);
-  EXPECT_EQ(result_4.sk_bitmap->width(), 6);
-  EXPECT_EQ(result_4.sk_bitmap->height(), 2);
+  ASSERT_TRUE(result_4.ok());
+  EXPECT_EQ(result_4->image_info.size.width, 6);
+  EXPECT_EQ(result_4->image_info.size.height, 2);
 #endif  // IMPELLER_SUPPORTS_RENDERING
 }
 
@@ -906,30 +963,10 @@ TEST(ImageDecoderTest, VerifySubpixelDecodingPreservesExifOrientation) {
   ASSERT_EQ(600, descriptor->width());
   ASSERT_EQ(200, descriptor->height());
 
-  auto image = SkImages::DeferredFromEncodedData(data);
+  auto image = SkCodecs::DeferredImage(SkJpegDecoder::Decode(data, nullptr));
   ASSERT_TRUE(image != nullptr);
   ASSERT_EQ(600, image->width());
   ASSERT_EQ(200, image->height());
-
-  auto decode = [descriptor](uint32_t target_width, uint32_t target_height) {
-    return ImageDecoderSkia::ImageFromCompressedData(
-        descriptor.get(), target_width, target_height,
-        fml::tracing::TraceFlow(""));
-  };
-
-  auto expected_data = flutter::testing::OpenFixtureAsSkData("Horizontal.png");
-  ASSERT_TRUE(expected_data != nullptr);
-  ASSERT_FALSE(expected_data->isEmpty());
-
-  auto assert_image = [&](const auto& decoded_image,
-                          const std::string& decode_error) {
-    ASSERT_EQ(decoded_image->dimensions(), SkISize::Make(300, 100));
-    sk_sp<SkData> encoded =
-        SkPngEncoder::Encode(nullptr, decoded_image.get(), {});
-    ASSERT_TRUE(encoded->equals(expected_data.get()));
-  };
-
-  assert_image(decode(300, 100), {});
 }
 
 TEST_F(ImageDecoderFixtureTest,

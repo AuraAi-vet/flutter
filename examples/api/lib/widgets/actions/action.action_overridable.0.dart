@@ -26,13 +26,13 @@ class CopyableText extends StatelessWidget {
 
   final String text;
 
-  void _copy(CopyTextIntent intent) => Clipboard.setData(ClipboardData(text: text));
+  void _copy(CopyTextIntent intent) =>
+      Clipboard.setData(ClipboardData(text: text));
 
   @override
   Widget build(BuildContext context) {
-    final Action<CopyTextIntent> defaultCopyAction = CallbackAction<CopyTextIntent>(
-      onInvoke: _copy,
-    );
+    final Action<CopyTextIntent> defaultCopyAction =
+        CallbackAction<CopyTextIntent>(onInvoke: _copy);
     return Shortcuts(
       shortcuts: const <ShortcutActivator, Intent>{
         SingleActivator(LogicalKeyboardKey.keyC, control: true): copyTextIntent,
@@ -49,7 +49,7 @@ class CopyableText extends StatelessWidget {
         child: Focus(
           autofocus: true,
           child: DefaultTextStyle.merge(
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 20, fontWeight: .bold),
             child: Text(text),
           ),
         ),
@@ -73,12 +73,12 @@ class VerificationCodeGenerator extends StatelessWidget {
         CopyTextIntent: CallbackAction<CopyTextIntent>(onInvoke: _copy),
       },
       child: const Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: .center,
         children: <Widget>[
           Text('Press Ctrl-C to Copy'),
           SizedBox(height: 10),
           Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: .center,
             children: <Widget>[
               CopyableText(text: '111'),
               SizedBox(width: 5),

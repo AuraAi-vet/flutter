@@ -49,7 +49,9 @@ class _SliverAppBarExampleState extends State<SliverAppBarExample> {
           const SliverToBoxAdapter(
             child: SizedBox(
               height: 20,
-              child: Center(child: Text('Scroll to see the SliverAppBar in effect.')),
+              child: Center(
+                child: Text('Scroll to see the SliverAppBar in effect.'),
+              ),
             ),
           ),
           SliverList.builder(
@@ -58,7 +60,9 @@ class _SliverAppBarExampleState extends State<SliverAppBarExample> {
               return Container(
                 color: index.isOdd ? Colors.white : Colors.black12,
                 height: 100.0,
-                child: Center(child: Text('$index', textScaler: const TextScaler.linear(5))),
+                child: Center(
+                  child: Text('$index', textScaler: const .linear(5)),
+                ),
               );
             },
           ),
@@ -66,12 +70,12 @@ class _SliverAppBarExampleState extends State<SliverAppBarExample> {
       ),
       bottomNavigationBar: BottomAppBar(
         child: Padding(
-          padding: const EdgeInsets.all(8),
+          padding: const .all(8),
           child: OverflowBar(
-            overflowAlignment: OverflowBarAlignment.center,
+            overflowAlignment: .center,
             children: <Widget>[
               Row(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisSize: .min,
                 children: <Widget>[
                   const Text('pinned'),
                   Switch(
@@ -85,7 +89,7 @@ class _SliverAppBarExampleState extends State<SliverAppBarExample> {
                 ],
               ),
               Row(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisSize: .min,
                 children: <Widget>[
                   const Text('snap'),
                   Switch(
@@ -101,7 +105,7 @@ class _SliverAppBarExampleState extends State<SliverAppBarExample> {
                 ],
               ),
               Row(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisSize: .min,
                 children: <Widget>[
                   const Text('floating'),
                   Switch(

@@ -24,6 +24,15 @@ extension on web.CSSRuleList {
       Iterable<web.CSSRule?>.generate(length, (int index) => item(index));
 }
 
+// TODO(Renzo-Olivares): Remove this when the web context menu
+// for Android and iOS is re-enabled.
+// See: https://github.com/flutter/flutter/issues/177123.
+final TargetPlatformVariant _browserContextMenuEnabledVariants = TargetPlatformVariant(
+  TargetPlatform.values
+      .where((platform) => platform != TargetPlatform.android && platform != TargetPlatform.iOS)
+      .toSet(),
+);
+
 void main() {
   late FakePlatformViewRegistry fakePlatformViewRegistry;
 
@@ -51,8 +60,7 @@ void main() {
       ),
     );
 
-    final web.HTMLElement element =
-        fakePlatformViewRegistry.getViewById(currentViewId + 1) as web.HTMLElement;
+    final element = fakePlatformViewRegistry.getViewById(currentViewId + 1) as web.HTMLElement;
 
     expect(element, isNotNull);
     expect(element.style.width, '100%');
@@ -61,7 +69,7 @@ void main() {
 
     final int numberOfStyleElements = getNumberOfStyleElements();
     expect(numberOfStyleElements, 1);
-  });
+  }, variant: _browserContextMenuEnabledVariants);
 
   testWidgets('only one <style> is inserted into the DOM', (WidgetTester tester) async {
     await tester.pumpWidget(
@@ -89,14 +97,14 @@ void main() {
 
     final int numberOfStyleElements = getNumberOfStyleElements();
     expect(numberOfStyleElements, 1);
-  });
+  }, variant: _browserContextMenuEnabledVariants);
 
   testWidgets('right click can trigger select word', (WidgetTester tester) async {
     final int currentViewId = platformViewsRegistry.getNextPlatformViewId();
 
-    final FocusNode focusNode = FocusNode();
+    final focusNode = FocusNode();
     addTearDown(focusNode.dispose);
-    final UniqueKey spy = UniqueKey();
+    final spy = UniqueKey();
     await tester.pumpWidget(
       MaterialApp(
         home: SelectableRegion(
@@ -107,8 +115,7 @@ void main() {
       ),
     );
 
-    final web.HTMLElement element =
-        fakePlatformViewRegistry.getViewById(currentViewId + 1) as web.HTMLElement;
+    final element = fakePlatformViewRegistry.getViewById(currentViewId + 1) as web.HTMLElement;
     expect(element, isNotNull);
 
     focusNode.requestFocus();
@@ -133,7 +140,7 @@ void main() {
     expect(selectWordEvent, isNotNull);
     expect((selectWordEvent!.globalPosition.dx - 200).abs() < precisionErrorTolerance, isTrue);
     expect((selectWordEvent.globalPosition.dy - 300).abs() < precisionErrorTolerance, isTrue);
-  });
+  }, variant: _browserContextMenuEnabledVariants);
 
   // Regression test for https://github.com/flutter/flutter/issues/157579
   testWidgets('prevents default action of mousedown events', (WidgetTester tester) async {
@@ -148,24 +155,23 @@ void main() {
       ),
     );
 
-    final web.HTMLElement element =
-        fakePlatformViewRegistry.getViewById(currentViewId + 1) as web.HTMLElement;
+    final element = fakePlatformViewRegistry.getViewById(currentViewId + 1) as web.HTMLElement;
     expect(element, isNotNull);
 
-    for (int i = 0; i <= 4; i++) {
-      final web.MouseEvent event = web.MouseEvent(
+    for (var i = 0; i <= 4; i++) {
+      final event = web.MouseEvent(
         'mousedown',
         web.MouseEventInit(button: i, clientX: 200, clientY: 300, cancelable: true),
       );
       element.dispatchEvent(event);
       expect(event.defaultPrevented, isTrue);
     }
-  });
+  }, variant: _browserContextMenuEnabledVariants);
 }
 
 void removeAllStyleElements() {
   final List<web.Element?> styles = web.document.head!.children.iterable.toList();
-  for (final web.Element? element in styles) {
+  for (final element in styles) {
     if (element!.tagName == 'STYLE') {
       element.remove();
     }
@@ -175,7 +181,7 @@ void removeAllStyleElements() {
 int getNumberOfStyleElements() {
   expect(web.document.head!.children.iterable, isNotEmpty);
 
-  int count = 0;
+  var count = 0;
   for (final web.Element? element in web.document.head!.children.iterable) {
     expect(element, isNotNull);
     if (element!.tagName != 'STYLE') {

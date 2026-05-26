@@ -4,16 +4,19 @@
 
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'clipboard_utils.dart';
+import 'editable_text_tester.dart' show testTextSelectionHandleControls;
 import 'keyboard_utils.dart';
+import 'widgets_app_tester.dart';
 
 Offset textOffsetToPosition(RenderParagraph paragraph, int offset) {
-  const Rect caret = Rect.fromLTWH(0.0, 0.0, 2.0, 20.0);
+  const caret = Rect.fromLTWH(0.0, 0.0, 2.0, 20.0);
   final Offset localOffset = paragraph.getOffsetForCaret(TextPosition(offset: offset), caret);
   return paragraph.localToGlobal(localOffset);
 }
@@ -24,7 +27,7 @@ Offset globalize(Offset point, RenderBox box) {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  final MockClipboard mockClipboard = MockClipboard();
+  final mockClipboard = MockClipboard();
 
   setUp(() async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -374,7 +377,7 @@ void main() {
   });
 
   testWidgets('select to scroll forward', (WidgetTester tester) async {
-    final ScrollController controller = ScrollController();
+    final controller = ScrollController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       MaterialApp(
@@ -439,7 +442,7 @@ void main() {
   });
 
   testWidgets('select to scroll works for small scrollable', (WidgetTester tester) async {
-    final ScrollController controller = ScrollController();
+    final controller = ScrollController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       MaterialApp(
@@ -493,7 +496,7 @@ void main() {
   });
 
   testWidgets('select to scroll backward', (WidgetTester tester) async {
-    final ScrollController controller = ScrollController();
+    final controller = ScrollController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       MaterialApp(
@@ -555,7 +558,7 @@ void main() {
   });
 
   testWidgets('select to scroll forward - horizontal', (WidgetTester tester) async {
-    final ScrollController controller = ScrollController();
+    final controller = ScrollController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       MaterialApp(
@@ -617,7 +620,7 @@ void main() {
   });
 
   testWidgets('select to scroll backward - horizontal', (WidgetTester tester) async {
-    final ScrollController controller = ScrollController();
+    final controller = ScrollController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       MaterialApp(
@@ -678,7 +681,7 @@ void main() {
   });
 
   testWidgets('preserve selection when out of view.', (WidgetTester tester) async {
-    final ScrollController controller = ScrollController();
+    final controller = ScrollController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       MaterialApp(
@@ -739,7 +742,7 @@ void main() {
   testWidgets(
     'can select all non-Apple',
     (WidgetTester tester) async {
-      final FocusNode node = FocusNode();
+      final node = FocusNode();
       addTearDown(node.dispose);
       await tester.pumpWidget(
         MaterialApp(
@@ -763,7 +766,7 @@ void main() {
       );
       await tester.pump();
 
-      for (int i = 0; i < 13; i += 1) {
+      for (var i = 0; i < 13; i += 1) {
         final RenderParagraph paragraph = tester.renderObject<RenderParagraph>(
           find.descendant(of: find.text('Item $i'), matching: find.byType(RichText)),
         );
@@ -785,7 +788,7 @@ void main() {
   testWidgets(
     'can select all - Apple',
     (WidgetTester tester) async {
-      final FocusNode node = FocusNode();
+      final node = FocusNode();
       addTearDown(node.dispose);
       await tester.pumpWidget(
         MaterialApp(
@@ -806,7 +809,7 @@ void main() {
       await sendKeyCombination(tester, const SingleActivator(LogicalKeyboardKey.keyA, meta: true));
       await tester.pump();
 
-      for (int i = 0; i < 13; i += 1) {
+      for (var i = 0; i < 13; i += 1) {
         final RenderParagraph paragraph = tester.renderObject<RenderParagraph>(
           find.descendant(of: find.text('Item $i'), matching: find.byType(RichText)),
         );
@@ -826,7 +829,7 @@ void main() {
   testWidgets('select to scroll by dragging selection handles forward', (
     WidgetTester tester,
   ) async {
-    final ScrollController controller = ScrollController();
+    final controller = ScrollController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       MaterialApp(
@@ -850,7 +853,7 @@ void main() {
     );
     final TestGesture gesture = await tester.startGesture(textOffsetToPosition(paragraph0, 2));
     addTearDown(gesture.removePointer);
-    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(kLongPressTimeout);
     await gesture.up();
     await tester.pumpAndSettle();
     expect(paragraph0.selections[0], const TextSelection(baseOffset: 0, extentOffset: 4));
@@ -899,7 +902,7 @@ void main() {
   testWidgets('select to scroll by dragging start selection handle stops scroll when released', (
     WidgetTester tester,
   ) async {
-    final ScrollController controller = ScrollController();
+    final controller = ScrollController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       MaterialApp(
@@ -923,7 +926,7 @@ void main() {
     );
     final TestGesture gesture = await tester.startGesture(textOffsetToPosition(paragraph0, 2));
     addTearDown(gesture.removePointer);
-    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(kLongPressTimeout);
     await gesture.up();
     await tester.pumpAndSettle();
     expect(paragraph0.selections[0], const TextSelection(baseOffset: 0, extentOffset: 4));
@@ -961,7 +964,7 @@ void main() {
   testWidgets('select to scroll by dragging end selection handle stops scroll when released', (
     WidgetTester tester,
   ) async {
-    final ScrollController controller = ScrollController();
+    final controller = ScrollController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       MaterialApp(
@@ -985,7 +988,7 @@ void main() {
     );
     final TestGesture gesture = await tester.startGesture(textOffsetToPosition(paragraph0, 2));
     addTearDown(gesture.removePointer);
-    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(kLongPressTimeout);
     await gesture.up();
     await tester.pumpAndSettle();
     expect(paragraph0.selections[0], const TextSelection(baseOffset: 0, extentOffset: 4));
@@ -1020,9 +1023,9 @@ void main() {
   });
 
   testWidgets('keyboard selection should auto scroll - vertical', (WidgetTester tester) async {
-    final FocusNode node = FocusNode();
+    final node = FocusNode();
     addTearDown(node.dispose);
-    final ScrollController controller = ScrollController();
+    final controller = ScrollController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       MaterialApp(
@@ -1114,9 +1117,9 @@ void main() {
   testWidgets('keyboard selection should auto scroll - vertical reversed', (
     WidgetTester tester,
   ) async {
-    final FocusNode node = FocusNode();
+    final node = FocusNode();
     addTearDown(node.dispose);
-    final ScrollController controller = ScrollController();
+    final controller = ScrollController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       MaterialApp(
@@ -1207,9 +1210,9 @@ void main() {
   }, variant: TargetPlatformVariant.all());
 
   testWidgets('keyboard selection should auto scroll - horizontal', (WidgetTester tester) async {
-    final FocusNode node = FocusNode();
+    final node = FocusNode();
     addTearDown(node.dispose);
-    final ScrollController controller = ScrollController();
+    final controller = ScrollController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       MaterialApp(
@@ -1269,90 +1272,237 @@ void main() {
     expect(controller.offset, 352.0);
   }, variant: TargetPlatformVariant.all());
 
-  testWidgets(
-    'keyboard selection should auto scroll - horizontal reversed',
-    (WidgetTester tester) async {
-      final FocusNode node = FocusNode();
-      addTearDown(node.dispose);
-      final ScrollController controller = ScrollController();
-      addTearDown(controller.dispose);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: SelectionArea(
-            focusNode: node,
-            selectionControls: materialTextSelectionControls,
-            child: ListView.builder(
-              controller: controller,
-              scrollDirection: Axis.horizontal,
-              reverse: true,
-              itemCount: 100,
-              itemBuilder: (BuildContext context, int index) {
-                return Text('Item $index');
-              },
+  testWidgets('keyboard selection should auto scroll - horizontal reversed', (
+    WidgetTester tester,
+  ) async {
+    final node = FocusNode();
+    addTearDown(node.dispose);
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SelectionArea(
+          focusNode: node,
+          selectionControls: materialTextSelectionControls,
+          child: ListView.builder(
+            controller: controller,
+            scrollDirection: Axis.horizontal,
+            reverse: true,
+            itemCount: 100,
+            itemBuilder: (BuildContext context, int index) {
+              return Text('Item $index');
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final RenderParagraph paragraph1 = tester.renderObject<RenderParagraph>(
+      find.descendant(of: find.text('Item 1'), matching: find.byType(RichText)),
+    );
+    final TestGesture gesture = await tester.startGesture(
+      textOffsetToPosition(paragraph1, 5) + const Offset(0, 5),
+      kind: ui.PointerDeviceKind.mouse,
+    );
+    addTearDown(gesture.removePointer);
+    await gesture.moveTo(textOffsetToPosition(paragraph1, 4) + const Offset(0, 5));
+    await tester.pumpAndSettle();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(paragraph1.selections.length, 1);
+    expect(paragraph1.selections[0].start, 4);
+    expect(paragraph1.selections[0].end, 5);
+    expect(controller.offset, 0.0);
+
+    await sendKeyCombination(
+      tester,
+      const SingleActivator(LogicalKeyboardKey.arrowUp, shift: true),
+    );
+    await tester.pump();
+    expect(paragraph1.selections.length, 1);
+    expect(paragraph1.selections[0].start, 0);
+    expect(paragraph1.selections[0].end, 5);
+    expect(controller.offset, 0.0);
+
+    await sendKeyCombination(
+      tester,
+      const SingleActivator(LogicalKeyboardKey.arrowUp, shift: true),
+    );
+    await tester.pump();
+    final RenderParagraph paragraph2 = tester.renderObject<RenderParagraph>(
+      find.descendant(of: find.text('Item 2'), matching: find.byType(RichText)),
+    );
+    expect(paragraph2.selections.length, 1);
+    expect(paragraph2.selections[0].start, 0);
+    expect(paragraph2.selections[0].end, 6);
+    expect(controller.offset, 64.0);
+
+    await sendKeyCombination(
+      tester,
+      const SingleActivator(LogicalKeyboardKey.arrowUp, shift: true),
+    );
+    await tester.pump();
+    final RenderParagraph paragraph3 = tester.renderObject<RenderParagraph>(
+      find.descendant(of: find.text('Item 3'), matching: find.byType(RichText)),
+    );
+    expect(paragraph3.selections.length, 1);
+    expect(paragraph3.selections[0].start, 0);
+    expect(paragraph3.selections[0].end, 6);
+    expect(controller.offset, 352.0);
+  }, variant: TargetPlatformVariant.all());
+
+  testWidgets('Starting selection in empty padding of scrollable should not crash', (
+    WidgetTester tester,
+  ) async {
+    // Regression test for https://github.com/flutter/flutter/issues/115787
+    const text = 'Some selectable text children';
+
+    await tester.pumpWidget(
+      TestWidgetsApp(
+        home: SelectableRegion(
+          selectionControls: emptyTextSelectionControls,
+          child: const SingleChildScrollView(padding: EdgeInsets.all(50.0), child: Text(text)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final Offset paddingOffset =
+        tester.getTopLeft(find.byType(SingleChildScrollView)) + const Offset(20.0, 20.0);
+    final Offset textCenter = tester.getCenter(find.text(text));
+
+    final TestGesture gesture = await tester.startGesture(paddingOffset);
+    addTearDown(gesture.removePointer);
+
+    // Simulate long press.
+    await tester.pump(kLongPressTimeout);
+
+    // Drag into the text content.
+    await gesture.moveTo(textCenter);
+    await tester.pump();
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Fast drag starting in padding correctly triggers auto-scroll', (
+    WidgetTester tester,
+  ) async {
+    final String text =
+        'Some selectable text children that is long enough to make it scrollable \n' * 20;
+
+    await tester.pumpWidget(
+      TestWidgetsApp(
+        home: SelectableRegion(
+          selectionControls: emptyTextSelectionControls,
+          child: SizedBox(
+            height: 200.0,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(top: 50.0),
+              child: Text(text),
             ),
           ),
         ),
-      );
-      await tester.pumpAndSettle();
-      final RenderParagraph paragraph1 = tester.renderObject<RenderParagraph>(
-        find.descendant(of: find.text('Item 1'), matching: find.byType(RichText)),
-      );
-      final TestGesture gesture = await tester.startGesture(
-        textOffsetToPosition(paragraph1, 5) + const Offset(0, 5),
-        kind: ui.PointerDeviceKind.mouse,
-      );
-      addTearDown(gesture.removePointer);
-      await gesture.moveTo(textOffsetToPosition(paragraph1, 4) + const Offset(0, 5));
-      await tester.pumpAndSettle();
-      await gesture.up();
-      await tester.pumpAndSettle();
-      expect(paragraph1.selections.length, 1);
-      expect(paragraph1.selections[0].start, 4);
-      expect(paragraph1.selections[0].end, 5);
-      expect(controller.offset, 0.0);
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      await sendKeyCombination(
-        tester,
-        const SingleActivator(LogicalKeyboardKey.arrowUp, shift: true),
-      );
-      await tester.pump();
-      expect(paragraph1.selections.length, 1);
-      expect(paragraph1.selections[0].start, 0);
-      expect(paragraph1.selections[0].end, 5);
-      expect(controller.offset, 0.0);
+    final ScrollPosition position = tester.state<ScrollableState>(find.byType(Scrollable)).position;
+    expect(position.pixels, 0.0);
 
-      await sendKeyCombination(
-        tester,
-        const SingleActivator(LogicalKeyboardKey.arrowUp, shift: true),
-      );
-      await tester.pump();
-      final RenderParagraph paragraph2 = tester.renderObject<RenderParagraph>(
-        find.descendant(of: find.text('Item 2'), matching: find.byType(RichText)),
-      );
-      expect(paragraph2.selections.length, 1);
-      expect(paragraph2.selections[0].start, 0);
-      expect(paragraph2.selections[0].end, 6);
-      expect(controller.offset, 64.0);
+    // Get a point inside the padding (which is inside the scrollable).
+    final Offset scrollableTopLeft = tester.getTopLeft(find.byType(SingleChildScrollView));
+    final Offset paddingStartOffset =
+        scrollableTopLeft + const Offset(50.0, 20.0); // Inside padding.
 
-      await sendKeyCombination(
-        tester,
-        const SingleActivator(LogicalKeyboardKey.arrowUp, shift: true),
-      );
-      await tester.pump();
-      final RenderParagraph paragraph3 = tester.renderObject<RenderParagraph>(
-        find.descendant(of: find.text('Item 3'), matching: find.byType(RichText)),
-      );
-      expect(paragraph3.selections.length, 1);
-      expect(paragraph3.selections[0].start, 0);
-      expect(paragraph3.selections[0].end, 6);
-      expect(controller.offset, 352.0);
-    },
-    variant: TargetPlatformVariant.all(),
-  );
+    // Get a point outside the bottom of the scrollable to trigger downward auto-scrolling.
+    final Offset dragEndOffset =
+        tester.getBottomLeft(find.byType(SingleChildScrollView)) + const Offset(50.0, 100.0);
+
+    // Start gesture perfectly on padding.
+    final TestGesture gesture = await tester.startGesture(paddingStartOffset);
+    addTearDown(gesture.removePointer);
+
+    // Simulate long press.
+    await tester.pump(kLongPressTimeout);
+
+    // First drag update is far ALREADY OUTSIDE the scrollable.
+    // Emulates a very fast drag movement (so the first EdgeUpdate frame is processed outside).
+    await gesture.moveTo(dragEndOffset);
+    await tester.pump();
+
+    // Let auto-scroller run for a few frames.
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // If _selectionStartsInScrollable was correctly preserved as TRUE,
+    // the scrollable will have started auto-scrolling downwards.
+    expect(position.pixels, greaterThan(0.0));
+    await gesture.up();
+  });
+
+  testWidgets('automatic edge scrolling respects NeverScrollableScrollPhysics', (
+    WidgetTester tester,
+  ) async {
+    // Regression test for https://github.com/flutter/flutter/issues/140654.
+    // When a scrollable view with non-scrollable physics (e.g.,
+    // NeverScrollableScrollPhysics) is wrapped in a SelectableRegion, dragging
+    // a selection past the viewport boundary must not advance the scroll offset
+    // or throw exceptions.
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      TestWidgetsApp(
+        home: SelectableRegion(
+          selectionControls: testTextSelectionHandleControls,
+          child: ListView.builder(
+            controller: controller,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: 100,
+            itemBuilder: (BuildContext context, int index) {
+              return Text('Item $index');
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final TestGesture gesture = await tester.startGesture(
+      tester.getCenter(find.text('Item 0')),
+      kind: ui.PointerDeviceKind.mouse,
+    );
+    addTearDown(gesture.removePointer);
+    await tester.pump();
+    expect(controller.offset, 0.0);
+
+    // Drag past the bottom of the scrollable; this would normally trigger
+    // edge auto-scroll.
+    await gesture.moveTo(tester.getBottomRight(find.byType(ListView)) + const Offset(0.0, 40.0));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    // The scroll position must not have advanced, and no exception must have
+    // been thrown.
+    expect(controller.offset, 0.0);
+    expect(tester.takeException(), isNull);
+
+    await tester.pump(const Duration(seconds: 1));
+    expect(controller.offset, 0.0);
+    expect(tester.takeException(), isNull);
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(controller.offset, 0.0);
+    expect(tester.takeException(), isNull);
+  });
 
   group('Complex cases', () {
     testWidgets('selection starts outside of the scrollable', (WidgetTester tester) async {
-      final ScrollController controller = ScrollController();
+      final controller = ScrollController();
       addTearDown(controller.dispose);
       await tester.pumpWidget(
         MaterialApp(
@@ -1408,9 +1558,9 @@ void main() {
     });
 
     testWidgets('nested scrollables keep selection alive', (WidgetTester tester) async {
-      final ScrollController outerController = ScrollController();
+      final outerController = ScrollController();
       addTearDown(outerController.dispose);
-      final ScrollController innerController = ScrollController();
+      final innerController = ScrollController();
       addTearDown(innerController.dispose);
       await tester.pumpWidget(
         MaterialApp(
@@ -1502,9 +1652,9 @@ void main() {
     testWidgets(
       'can copy off screen selection - Apple',
       (WidgetTester tester) async {
-        final ScrollController controller = ScrollController();
+        final controller = ScrollController();
         addTearDown(controller.dispose);
-        final FocusNode focusNode = FocusNode();
+        final focusNode = FocusNode();
         addTearDown(focusNode.dispose);
         await tester.pumpWidget(
           MaterialApp(
@@ -1558,8 +1708,7 @@ void main() {
           const SingleActivator(LogicalKeyboardKey.keyC, meta: true),
         );
 
-        final Map<String, dynamic> clipboardData =
-            mockClipboard.clipboardData as Map<String, dynamic>;
+        final clipboardData = mockClipboard.clipboardData as Map<String, dynamic>;
         expect(clipboardData['text'], 'em 0It');
       },
       variant: const TargetPlatformVariant(<TargetPlatform>{
@@ -1571,9 +1720,9 @@ void main() {
     testWidgets(
       'can copy off screen selection - non-Apple',
       (WidgetTester tester) async {
-        final ScrollController controller = ScrollController();
+        final controller = ScrollController();
         addTearDown(controller.dispose);
-        final FocusNode focusNode = FocusNode();
+        final focusNode = FocusNode();
         addTearDown(focusNode.dispose);
         await tester.pumpWidget(
           MaterialApp(
@@ -1627,8 +1776,7 @@ void main() {
           const SingleActivator(LogicalKeyboardKey.keyC, control: true),
         );
 
-        final Map<String, dynamic> clipboardData =
-            mockClipboard.clipboardData as Map<String, dynamic>;
+        final clipboardData = mockClipboard.clipboardData as Map<String, dynamic>;
         expect(clipboardData['text'], 'em 0It');
       },
       variant: const TargetPlatformVariant(<TargetPlatform>{

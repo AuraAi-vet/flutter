@@ -14,12 +14,12 @@ void main() {
 
   test('SearchViewThemeData lerp special cases', () {
     expect(SearchViewThemeData.lerp(null, null, 0), null);
-    const SearchViewThemeData data = SearchViewThemeData();
+    const data = SearchViewThemeData();
     expect(identical(SearchViewThemeData.lerp(data, data, 0.5), data), true);
   });
 
   test('SearchViewThemeData defaults', () {
-    const SearchViewThemeData themeData = SearchViewThemeData();
+    const themeData = SearchViewThemeData();
     expect(themeData.backgroundColor, null);
     expect(themeData.elevation, null);
     expect(themeData.surfaceTintColor, null);
@@ -34,7 +34,7 @@ void main() {
     expect(themeData.shrinkWrap, null);
     expect(themeData.dividerColor, null);
 
-    const SearchViewTheme theme = SearchViewTheme(data: SearchViewThemeData(), child: SizedBox());
+    const theme = SearchViewTheme(data: SearchViewThemeData(), child: SizedBox());
     expect(theme.data.backgroundColor, null);
     expect(theme.data.elevation, null);
     expect(theme.data.surfaceTintColor, null);
@@ -51,7 +51,7 @@ void main() {
   });
 
   testWidgets('Default SearchViewThemeData debugFillProperties', (WidgetTester tester) async {
-    final DiagnosticPropertiesBuilder builder = DiagnosticPropertiesBuilder();
+    final builder = DiagnosticPropertiesBuilder();
     const SearchViewThemeData().debugFillProperties(builder);
 
     final List<String> description = builder.properties
@@ -63,7 +63,7 @@ void main() {
   });
 
   testWidgets('SearchViewThemeData implements debugFillProperties', (WidgetTester tester) async {
-    final DiagnosticPropertiesBuilder builder = DiagnosticPropertiesBuilder();
+    final builder = DiagnosticPropertiesBuilder();
     const SearchViewThemeData(
       backgroundColor: Color(0xfffffff1),
       elevation: 3.5,
@@ -102,24 +102,20 @@ void main() {
   });
 
   group('[Theme, SearchViewTheme, SearchView properties overrides]', () {
-    const Color backgroundColor = Color(0xff000001);
-    const double elevation = 5.0;
-    const Color surfaceTintColor = Color(0xff000002);
-    const BorderSide side = BorderSide(color: Color(0xff000003), width: 2.0);
+    const backgroundColor = Color(0xff000001);
+    const elevation = 5.0;
+    const surfaceTintColor = Color(0xff000002);
+    const side = BorderSide(color: Color(0xff000003), width: 2.0);
     const OutlinedBorder shape = RoundedRectangleBorder(
       side: side,
       borderRadius: BorderRadius.all(Radius.circular(20.0)),
     );
-    const double headerHeight = 45.0;
-    const TextStyle headerTextStyle = TextStyle(color: Color(0xff000004), fontSize: 20.0);
-    const TextStyle headerHintStyle = TextStyle(color: Color(0xff000005), fontSize: 18.0);
-    const BoxConstraints constraints = BoxConstraints(
-      minWidth: 250.0,
-      maxWidth: 300.0,
-      minHeight: 450.0,
-    );
+    const headerHeight = 45.0;
+    const headerTextStyle = TextStyle(color: Color(0xff000004), fontSize: 20.0);
+    const headerHintStyle = TextStyle(color: Color(0xff000005), fontSize: 18.0);
+    const constraints = BoxConstraints(minWidth: 250.0, maxWidth: 300.0, minHeight: 450.0);
 
-    const SearchViewThemeData searchViewTheme = SearchViewThemeData(
+    const searchViewTheme = SearchViewThemeData(
       backgroundColor: backgroundColor,
       elevation: elevation,
       surfaceTintColor: surfaceTintColor,
@@ -230,21 +226,21 @@ void main() {
       await tester.pumpWidget(buildFrame(useSearchViewProperties: true));
       await tester.tap(find.byIcon(Icons.search));
       await tester.pumpAndSettle(); // allow the animations to finish
-      checkSearchView(tester);
+      await checkSearchView(tester);
     });
 
     testWidgets('SearchView theme data overrides defaults', (WidgetTester tester) async {
       await tester.pumpWidget(buildFrame(searchViewThemeData: searchViewTheme));
       await tester.tap(find.byIcon(Icons.search));
       await tester.pumpAndSettle();
-      checkSearchView(tester);
+      await checkSearchView(tester);
     });
 
     testWidgets('Overall Theme SearchView theme overrides defaults', (WidgetTester tester) async {
       await tester.pumpWidget(buildFrame(overallTheme: searchViewTheme));
       await tester.tap(find.byIcon(Icons.search));
       await tester.pumpAndSettle();
-      checkSearchView(tester);
+      await checkSearchView(tester);
     });
 
     // Same as the previous tests with empty SearchViewThemeData's instead of null.
@@ -261,7 +257,7 @@ void main() {
       );
       await tester.tap(find.byIcon(Icons.search));
       await tester.pumpAndSettle(); // allow the animations to finish
-      checkSearchView(tester);
+      await checkSearchView(tester);
     });
 
     testWidgets('SearchView theme overrides defaults and overall theme', (
@@ -272,7 +268,7 @@ void main() {
       );
       await tester.tap(find.byIcon(Icons.search));
       await tester.pumpAndSettle(); // allow the animations to finish
-      checkSearchView(tester);
+      await checkSearchView(tester);
     });
 
     testWidgets('Overall Theme SearchView theme overrides defaults and null theme', (
@@ -281,7 +277,7 @@ void main() {
       await tester.pumpWidget(buildFrame(overallTheme: searchViewTheme));
       await tester.tap(find.byIcon(Icons.search));
       await tester.pumpAndSettle(); // allow the animations to finish
-      checkSearchView(tester);
+      await checkSearchView(tester);
     });
   });
 }

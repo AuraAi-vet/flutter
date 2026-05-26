@@ -12,9 +12,10 @@ void main() {
 
   // Regression test for https://github.com/flutter/flutter/issues/35426.
   test('RenderSliverFloatingPersistentHeader maxScrollObstructionExtent is 0', () {
-    final TestRenderSliverFloatingPersistentHeader header =
-        TestRenderSliverFloatingPersistentHeader(child: RenderSizedBox(const Size(400.0, 100.0)));
-    final RenderViewport root = RenderViewport(
+    final header = TestRenderSliverFloatingPersistentHeader(
+      child: RenderSizedBox(const Size(400.0, 100.0)),
+    );
+    final root = RenderViewport(
       crossAxisDirection: AxisDirection.right,
       offset: ViewportOffset.zero(),
       cacheExtent: 0,
@@ -26,11 +27,10 @@ void main() {
   });
 
   test('RenderSliverFloatingPinnedPersistentHeader maxScrollObstructionExtent is minExtent', () {
-    final TestRenderSliverFloatingPinnedPersistentHeader header =
-        TestRenderSliverFloatingPinnedPersistentHeader(
-          child: RenderSizedBox(const Size(400.0, 100.0)),
-        );
-    final RenderViewport root = RenderViewport(
+    final header = TestRenderSliverFloatingPinnedPersistentHeader(
+      child: RenderSizedBox(const Size(400.0, 100.0)),
+    );
+    final root = RenderViewport(
       crossAxisDirection: AxisDirection.right,
       offset: ViewportOffset.zero(),
       cacheExtent: 0,
@@ -43,8 +43,8 @@ void main() {
 }
 
 class TestRenderSliverFloatingPersistentHeader extends RenderSliverFloatingPersistentHeader {
-  TestRenderSliverFloatingPersistentHeader({required RenderBox child})
-    : super(child: child, vsync: null, showOnScreenConfiguration: null);
+  TestRenderSliverFloatingPersistentHeader({required RenderBox super.child})
+    : super(vsync: null, showOnScreenConfiguration: null);
 
   @override
   double get maxExtent => 200;
@@ -55,8 +55,8 @@ class TestRenderSliverFloatingPersistentHeader extends RenderSliverFloatingPersi
 
 class TestRenderSliverFloatingPinnedPersistentHeader
     extends RenderSliverFloatingPinnedPersistentHeader {
-  TestRenderSliverFloatingPinnedPersistentHeader({required RenderBox child})
-    : super(child: child, vsync: null, showOnScreenConfiguration: null);
+  TestRenderSliverFloatingPinnedPersistentHeader({required RenderBox super.child})
+    : super(vsync: null, showOnScreenConfiguration: null);
 
   @override
   double get maxExtent => 200;

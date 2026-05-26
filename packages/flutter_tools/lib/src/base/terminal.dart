@@ -197,6 +197,10 @@ class AnsiTerminal implements Terminal {
   // Clear the entire line, cursor position does not change.
   static const clearEntireLineCode = '\u001b[2K';
 
+  // Move cursor to column 0 and erase from cursor to end of line (\x1B[K = \x1B[0K).
+  // Clears the entire current line regardless of cursor position.
+  static const clearAndReturnCode = '\r\x1B[K';
+
   static const _colorMap = <TerminalColor, String>{
     TerminalColor.red: red,
     TerminalColor.green: green,
@@ -244,7 +248,7 @@ class AnsiTerminal implements Terminal {
   final _boldControls = RegExp('(${RegExp.escape(resetBold)}|${RegExp.escape(bold)})');
 
   @override
-  var usesTerminalUi = false;
+  bool usesTerminalUi = false;
 
   @override
   String get warningMark {
@@ -402,7 +406,7 @@ class _TestTerminal implements Terminal {
   _TestTerminal({this.supportsColor = false, this.supportsEmoji = false});
 
   @override
-  var usesTerminalUi = false;
+  bool usesTerminalUi = false;
 
   @override
   String bolden(String message) => message;

@@ -115,7 +115,7 @@ Future<void> buildLinux(
   );
 
   if (buildInfo.codeSizeDirectory != null && sizeAnalyzer != null) {
-    final String arch = getNameForTargetPlatform(targetPlatform);
+    final String arch = targetPlatform.getName();
     final File codeSizeFile = globals.fs
         .directory(buildInfo.codeSizeDirectory)
         .childFile('snapshot.$arch.json');
@@ -163,6 +163,8 @@ Future<void> _runCmake(
   final String buildFlag = sentenceCase(buildModeName);
   final bool needCrossBuildOptionsForArm64 =
       needCrossBuild && targetPlatform == TargetPlatform.linux_arm64;
+  final bool needCrossBuildOptionsForRiscv64 =
+      needCrossBuild && targetPlatform == TargetPlatform.linux_riscv64;
   int result;
   if (!globals.processManager.canRun('cmake')) {
     throwToolExit(globals.userMessages.cmakeMissing);
@@ -173,12 +175,15 @@ Future<void> _runCmake(
       '-G',
       'Ninja',
       '-DCMAKE_BUILD_TYPE=$buildFlag',
-      '-DFLUTTER_TARGET_PLATFORM=${getNameForTargetPlatform(targetPlatform)}',
+      '-DFLUTTER_TARGET_PLATFORM=${targetPlatform.getName()}',
       // Support cross-building for arm64 targets on x64 hosts.
       // (Cross-building for x64 on arm64 hosts isn't supported now.)
       if (needCrossBuild) '-DFLUTTER_TARGET_PLATFORM_SYSROOT=$targetSysroot',
       if (needCrossBuildOptionsForArm64) '-DCMAKE_C_COMPILER_TARGET=aarch64-linux-gnu',
       if (needCrossBuildOptionsForArm64) '-DCMAKE_CXX_COMPILER_TARGET=aarch64-linux-gnu',
+      // Support cross-building for riscv64 targets on x64 hosts.
+      if (needCrossBuildOptionsForRiscv64) '-DCMAKE_C_COMPILER_TARGET=riscv64-linux-gnu',
+      if (needCrossBuildOptionsForRiscv64) '-DCMAKE_CXX_COMPILER_TARGET=riscv64-linux-gnu',
       sourceDir.path,
     ],
     workingDirectory: buildDir.path,

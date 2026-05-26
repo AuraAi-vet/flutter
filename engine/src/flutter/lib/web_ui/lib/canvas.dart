@@ -119,13 +119,18 @@ abstract class Picture {
   static PictureEventCallback? onCreate;
   static PictureEventCallback? onDispose;
   Future<Image> toImage(int width, int height);
-  Image toImageSync(int width, int height);
+  Image toImageSync(
+    int width,
+    int height, {
+    TargetPixelFormat targetFormat = TargetPixelFormat.dontCare,
+  });
   void dispose();
   bool get debugDisposed;
   int get approximateBytesUsed;
 }
 
 enum PathFillType { nonZero, evenOdd }
+
 // Must be kept in sync with SkPathOp
 
 enum PathOperation { difference, intersect, union, xor, reverseDifference }

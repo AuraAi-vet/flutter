@@ -11,13 +11,12 @@ import 'dart:ui' as ui show BoxHeightStyle;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../widgets/clipboard_utils.dart';
-import '../widgets/editable_text_utils.dart' show findRenderEditable, textOffsetToPosition;
+import 'editable_text_utils.dart' show findRenderEditable, textOffsetToPosition;
 
 class _LongCupertinoLocalizationsDelegate extends LocalizationsDelegate<CupertinoLocalizations> {
   const _LongCupertinoLocalizationsDelegate();
@@ -58,9 +57,24 @@ class _LongCupertinoLocalizations extends DefaultCupertinoLocalizations {
 
 const _LongCupertinoLocalizations _longLocalizations = _LongCupertinoLocalizations();
 
+class _RichTextController extends TextEditingController {
+  _RichTextController({required this.textSpan}) : super(text: textSpan.toPlainText());
+
+  final TextSpan textSpan;
+
+  @override
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    TextStyle? style,
+    required bool withComposing,
+  }) {
+    return textSpan;
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  final MockClipboard mockClipboard = MockClipboard();
+  final mockClipboard = MockClipboard();
 
   List<TextSelectionPoint> globalize(Iterable<TextSelectionPoint> points, RenderBox box) {
     return points.map<TextSelectionPoint>((TextSelectionPoint point) {
@@ -87,10 +101,10 @@ void main() {
 
   group('canSelectAll', () {
     Widget createEditableText({Key? key, String? text, TextSelection? selection}) {
-      final TextEditingController controller = TextEditingController(text: text)
+      final controller = TextEditingController(text: text)
         ..selection = selection ?? const TextSelection.collapsed(offset: -1);
       addTearDown(controller.dispose);
-      final FocusNode focusNode = FocusNode();
+      final focusNode = FocusNode();
       addTearDown(focusNode.dispose);
 
       return CupertinoApp(
@@ -236,7 +250,7 @@ void main() {
     testWidgets(
       'All menu items show when they fit.',
       (WidgetTester tester) async {
-        final TextEditingController controller = TextEditingController(text: 'abc def ghi');
+        final controller = TextEditingController(text: 'abc def ghi');
         addTearDown(controller.dispose);
         await tester.pumpWidget(
           CupertinoApp(
@@ -297,7 +311,7 @@ void main() {
         tester.view.physicalSize = const Size(1000, 800);
         addTearDown(tester.view.reset);
 
-        final TextEditingController controller = TextEditingController(text: 'abc def ghi');
+        final controller = TextEditingController(text: 'abc def ghi');
         addTearDown(controller.dispose);
         await tester.pumpWidget(
           CupertinoApp(
@@ -406,7 +420,7 @@ void main() {
         tester.view.physicalSize = const Size(640, 800);
         addTearDown(tester.view.reset);
 
-        final TextEditingController controller = TextEditingController(text: 'abc def ghi');
+        final controller = TextEditingController(text: 'abc def ghi');
         addTearDown(controller.dispose);
         await tester.pumpWidget(
           CupertinoApp(
@@ -547,7 +561,7 @@ void main() {
     testWidgets(
       'Handles very long locale strings',
       (WidgetTester tester) async {
-        final TextEditingController controller = TextEditingController(text: 'abc def ghi');
+        final controller = TextEditingController(text: 'abc def ghi');
         addTearDown(controller.dispose);
         await tester.pumpWidget(
           CupertinoApp(
@@ -555,7 +569,6 @@ void main() {
             localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
               _LongCupertinoLocalizations.delegate,
               DefaultWidgetsLocalizations.delegate,
-              DefaultMaterialLocalizations.delegate,
             ],
             home: Directionality(
               textDirection: TextDirection.ltr,
@@ -658,9 +671,7 @@ void main() {
     testWidgets(
       'When selecting multiple lines over max lines',
       (WidgetTester tester) async {
-        final TextEditingController controller = TextEditingController(
-          text: 'abc\ndef\nghi\njkl\nmno\npqr',
-        );
+        final controller = TextEditingController(text: 'abc\ndef\nghi\njkl\nmno\npqr');
         addTearDown(controller.dispose);
         await tester.pumpWidget(
           CupertinoApp(
@@ -731,29 +742,41 @@ void main() {
   testWidgets(
     'iOS selection handles scale with rich text (selection height style tight)',
     (WidgetTester tester) async {
+      final focusNode = FocusNode();
+      addTearDown(focusNode.dispose);
+      final controller = _RichTextController(
+        textSpan: const TextSpan(
+          children: <InlineSpan>[
+            TextSpan(text: 'abc ', style: TextStyle(fontSize: 100.0)),
+            TextSpan(text: 'def ', style: TextStyle(fontSize: 50.0)),
+            TextSpan(text: 'hij', style: TextStyle(fontSize: 25.0)),
+          ],
+        ),
+      );
+      addTearDown(controller.dispose);
+
       await tester.pumpWidget(
-        const CupertinoApp(
+        CupertinoApp(
           home: Center(
-            child: SelectableText.rich(
-              TextSpan(
-                children: <InlineSpan>[
-                  TextSpan(text: 'abc ', style: TextStyle(fontSize: 100.0)),
-                  TextSpan(text: 'def ', style: TextStyle(fontSize: 50.0)),
-                  TextSpan(text: 'hij', style: TextStyle(fontSize: 25.0)),
-                ],
-              ),
+            child: CupertinoTextField(
+              controller: controller,
+              focusNode: focusNode,
+              style: const TextStyle(fontSize: 100.0),
+              cursorColor: const Color.fromARGB(0, 0, 0, 0),
               selectionHeightStyle: ui.BoxHeightStyle.tight,
+              selectionControls: cupertinoTextSelectionControls,
+              readOnly: true,
+              decoration: null,
+              padding: EdgeInsets.zero,
             ),
           ),
         ),
       );
 
-      final EditableText editableTextWidget = tester.widget(find.byType(EditableText));
       final EditableTextState editableTextState = tester.state(find.byType(EditableText));
-      final TextEditingController controller = editableTextWidget.controller;
 
       // Double tap to select the second word.
-      const int index = 4;
+      const index = 4;
       await tester.tapAt(textOffsetToPosition(tester, index));
       await tester.pump(const Duration(milliseconds: 50));
       await tester.tapAt(textOffsetToPosition(tester, index));
@@ -813,28 +836,40 @@ void main() {
   testWidgets(
     'iOS selection handles scale with rich text (selection height style includeLineSpacingMiddle) (default)',
     (WidgetTester tester) async {
+      final focusNode = FocusNode();
+      addTearDown(focusNode.dispose);
+      final controller = _RichTextController(
+        textSpan: const TextSpan(
+          children: <InlineSpan>[
+            TextSpan(text: 'abc ', style: TextStyle(fontSize: 100.0)),
+            TextSpan(text: 'def ', style: TextStyle(fontSize: 50.0)),
+            TextSpan(text: 'hij', style: TextStyle(fontSize: 25.0)),
+          ],
+        ),
+      );
+      addTearDown(controller.dispose);
+
       await tester.pumpWidget(
-        const CupertinoApp(
+        CupertinoApp(
           home: Center(
-            child: SelectableText.rich(
-              TextSpan(
-                children: <InlineSpan>[
-                  TextSpan(text: 'abc ', style: TextStyle(fontSize: 100.0)),
-                  TextSpan(text: 'def ', style: TextStyle(fontSize: 50.0)),
-                  TextSpan(text: 'hij', style: TextStyle(fontSize: 25.0)),
-                ],
-              ),
+            child: CupertinoTextField(
+              controller: controller,
+              focusNode: focusNode,
+              style: const TextStyle(fontSize: 100.0),
+              cursorColor: const Color.fromARGB(0, 0, 0, 0),
+              selectionControls: cupertinoTextSelectionControls,
+              readOnly: true,
+              decoration: null,
+              padding: EdgeInsets.zero,
             ),
           ),
         ),
       );
 
-      final EditableText editableTextWidget = tester.widget(find.byType(EditableText));
       final EditableTextState editableTextState = tester.state(find.byType(EditableText));
-      final TextEditingController controller = editableTextWidget.controller;
 
       // Double tap to select the second word.
-      const int index = 4;
+      const index = 4;
       await tester.tapAt(textOffsetToPosition(tester, index));
       await tester.pump(const Duration(milliseconds: 50));
       await tester.tapAt(textOffsetToPosition(tester, index));
@@ -897,30 +932,42 @@ void main() {
   testWidgets(
     'iOS selection handles scale with rich text (grapheme clusters) (selection height style tight)',
     (WidgetTester tester) async {
+      final focusNode = FocusNode();
+      addTearDown(focusNode.dispose);
+      final controller = _RichTextController(
+        textSpan: const TextSpan(
+          children: <InlineSpan>[
+            TextSpan(text: 'abc ', style: TextStyle(fontSize: 100.0)),
+            TextSpan(text: 'def ', style: TextStyle(fontSize: 50.0)),
+            TextSpan(text: '👨‍👩‍👦 ', style: TextStyle(fontSize: 35.0)),
+            TextSpan(text: 'hij', style: TextStyle(fontSize: 25.0)),
+          ],
+        ),
+      );
+      addTearDown(controller.dispose);
+
       await tester.pumpWidget(
-        const CupertinoApp(
+        CupertinoApp(
           home: Center(
-            child: SelectableText.rich(
-              TextSpan(
-                children: <InlineSpan>[
-                  TextSpan(text: 'abc ', style: TextStyle(fontSize: 100.0)),
-                  TextSpan(text: 'def ', style: TextStyle(fontSize: 50.0)),
-                  TextSpan(text: '👨‍👩‍👦 ', style: TextStyle(fontSize: 35.0)),
-                  TextSpan(text: 'hij', style: TextStyle(fontSize: 25.0)),
-                ],
-              ),
+            child: CupertinoTextField(
+              controller: controller,
+              focusNode: focusNode,
+              style: const TextStyle(fontSize: 100.0),
+              cursorColor: const Color.fromARGB(0, 0, 0, 0),
               selectionHeightStyle: ui.BoxHeightStyle.tight,
+              selectionControls: cupertinoTextSelectionControls,
+              readOnly: true,
+              decoration: null,
+              padding: EdgeInsets.zero,
             ),
           ),
         ),
       );
 
-      final EditableText editableTextWidget = tester.widget(find.byType(EditableText));
       final EditableTextState editableTextState = tester.state(find.byType(EditableText));
-      final TextEditingController controller = editableTextWidget.controller;
 
       // Double tap to select the second word.
-      const int index = 4;
+      const index = 4;
       await tester.tapAt(textOffsetToPosition(tester, index));
       await tester.pump(const Duration(milliseconds: 50));
       await tester.tapAt(textOffsetToPosition(tester, index));
@@ -980,29 +1027,41 @@ void main() {
   testWidgets(
     'iOS selection handles scale with rich text (grapheme clusters) (selection height style includeLineSpacingMiddle) (default)',
     (WidgetTester tester) async {
+      final focusNode = FocusNode();
+      addTearDown(focusNode.dispose);
+      final controller = _RichTextController(
+        textSpan: const TextSpan(
+          children: <InlineSpan>[
+            TextSpan(text: 'abc ', style: TextStyle(fontSize: 100.0)),
+            TextSpan(text: 'def ', style: TextStyle(fontSize: 50.0)),
+            TextSpan(text: '👨‍👩‍👦 ', style: TextStyle(fontSize: 35.0)),
+            TextSpan(text: 'hij', style: TextStyle(fontSize: 25.0)),
+          ],
+        ),
+      );
+      addTearDown(controller.dispose);
+
       await tester.pumpWidget(
-        const CupertinoApp(
+        CupertinoApp(
           home: Center(
-            child: SelectableText.rich(
-              TextSpan(
-                children: <InlineSpan>[
-                  TextSpan(text: 'abc ', style: TextStyle(fontSize: 100.0)),
-                  TextSpan(text: 'def ', style: TextStyle(fontSize: 50.0)),
-                  TextSpan(text: '👨‍👩‍👦 ', style: TextStyle(fontSize: 35.0)),
-                  TextSpan(text: 'hij', style: TextStyle(fontSize: 25.0)),
-                ],
-              ),
+            child: CupertinoTextField(
+              controller: controller,
+              focusNode: focusNode,
+              style: const TextStyle(fontSize: 100.0),
+              cursorColor: const Color.fromARGB(0, 0, 0, 0),
+              selectionControls: cupertinoTextSelectionControls,
+              readOnly: true,
+              decoration: null,
+              padding: EdgeInsets.zero,
             ),
           ),
         ),
       );
 
-      final EditableText editableTextWidget = tester.widget(find.byType(EditableText));
       final EditableTextState editableTextState = tester.state(find.byType(EditableText));
-      final TextEditingController controller = editableTextWidget.controller;
 
       // Double tap to select the second word.
-      const int index = 4;
+      const index = 4;
       await tester.tapAt(textOffsetToPosition(tester, index));
       await tester.pump(const Duration(milliseconds: 50));
       await tester.tapAt(textOffsetToPosition(tester, index));
@@ -1062,28 +1121,40 @@ void main() {
   testWidgets(
     'iOS selection handles scaling falls back to preferredLineHeight when the current frame does not match the previous with a tight selection height style',
     (WidgetTester tester) async {
+      final focusNode = FocusNode();
+      addTearDown(focusNode.dispose);
+      final controller = _RichTextController(
+        textSpan: const TextSpan(
+          children: <InlineSpan>[
+            TextSpan(text: 'abc', style: TextStyle(fontSize: 40.0)),
+            TextSpan(text: 'def', style: TextStyle(fontSize: 50.0)),
+          ],
+        ),
+      );
+      addTearDown(controller.dispose);
+
       await tester.pumpWidget(
-        const CupertinoApp(
+        CupertinoApp(
           home: Center(
-            child: SelectableText.rich(
-              TextSpan(
-                children: <InlineSpan>[
-                  TextSpan(text: 'abc', style: TextStyle(fontSize: 40.0)),
-                  TextSpan(text: 'def', style: TextStyle(fontSize: 50.0)),
-                ],
-              ),
+            child: CupertinoTextField(
+              controller: controller,
+              focusNode: focusNode,
+              style: const TextStyle(fontSize: 50.0),
+              cursorColor: const Color.fromARGB(0, 0, 0, 0),
               selectionHeightStyle: ui.BoxHeightStyle.tight,
+              selectionControls: cupertinoTextSelectionControls,
+              readOnly: true,
+              decoration: null,
+              padding: EdgeInsets.zero,
             ),
           ),
         ),
       );
 
-      final EditableText editableTextWidget = tester.widget(find.byType(EditableText));
       final EditableTextState editableTextState = tester.state(find.byType(EditableText));
-      final TextEditingController controller = editableTextWidget.controller;
 
       // Double tap to select the second word.
-      const int index = 4;
+      const index = 4;
       await tester.tapAt(textOffsetToPosition(tester, index));
       await tester.pump(const Duration(milliseconds: 50));
       await tester.tapAt(textOffsetToPosition(tester, index));

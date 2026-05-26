@@ -13,6 +13,10 @@ FramebufferBlendContents::FramebufferBlendContents() = default;
 
 FramebufferBlendContents::~FramebufferBlendContents() = default;
 
+const Geometry* FramebufferBlendContents::GetGeometry() const {
+  return nullptr;
+}
+
 void FramebufferBlendContents::SetBlendMode(BlendMode blend_mode) {
   blend_mode_ = blend_mode;
 }
@@ -41,13 +45,12 @@ bool FramebufferBlendContents::Render(const ContentContext& renderer,
   auto& data_host_buffer = renderer.GetTransientsDataBuffer();
 
   auto src_snapshot = child_contents_->RenderToSnapshot(
-      renderer,                                    // renderer
-      entity,                                      // entity
-      Rect::MakeSize(pass.GetRenderTargetSize()),  // coverage_limit
-      std::nullopt,                                // sampler_descriptor
-      true,                                        // msaa_enabled
-      /*mip_count=*/1,
-      "FramebufferBlendContents Snapshot");  // label
+      renderer, entity,
+      {.coverage_limit = Rect::MakeSize(pass.GetRenderTargetSize()),
+       .sampler_descriptor = std::nullopt,
+       .msaa_enabled = true,
+       .mip_count = 1,
+       .label = "FramebufferBlendContents Snapshot"});
 
   if (!src_snapshot.has_value()) {
     return true;

@@ -1002,6 +1002,111 @@ plugins {
           FlutterProjectFactory: () => flutterProjectFactory,
         },
       );
+
+      group('_kotlinCompilerOptionsPattern', () {
+        void testRegex(String description, String content, {bool expected = true}) {
+          testUsingContext(
+            description,
+            () async {
+              final FlutterProject project = await someProject();
+              addAndroidGradleFile(project.directory, gradleFileContent: () => content);
+              expect(project.android.isKotlin, expected);
+            },
+            overrides: <Type, Generator>{
+              FileSystem: () => fs,
+              ProcessManager: () => FakeProcessManager.any(),
+              XcodeProjectInterpreter: () => xcodeProjectInterpreter,
+              FlutterProjectFactory: () => flutterProjectFactory,
+            },
+          );
+        }
+
+        testRegex('matches standard formatting', '''
+kotlin {
+  compilerOptions {
+    jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+  }
+}
+''');
+
+        testRegex('matches irregular whitespace', '''
+kotlin
+{
+  compilerOptions
+  {
+    jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+  }
+}
+''');
+
+        testRegex('matches even when there are additional blocks in kotlin{}', '''
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+    }
+
+    sourceSets {
+        main {
+            kotlin.srcDir("src/main/custom_kotlin")
+        }
+    }
+}
+''');
+
+        testRegex(
+          'matches no spacing',
+          'kotlin{compilerOptions{jvmTarget=org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17}}',
+        );
+
+        testRegex('does not match generic block without kotlin.compilerOptions{} DSL', '''
+android {
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+''', expected: false);
+      });
+
+      testUsingContext(
+        'isKotlin is true if src/main/kotlin directory exists',
+        () async {
+          final FlutterProject project = await someProject();
+          project.android.hostAppGradleRoot
+              .childDirectory('app')
+              .childDirectory('src')
+              .childDirectory('main')
+              .childDirectory('kotlin')
+              .createSync(recursive: true);
+          expect(project.android.isKotlin, isTrue);
+        },
+        overrides: <Type, Generator>{
+          FileSystem: () => fs,
+          ProcessManager: () => FakeProcessManager.any(),
+          XcodeProjectInterpreter: () => xcodeProjectInterpreter,
+          FlutterProjectFactory: () => flutterProjectFactory,
+        },
+      );
+
+      testUsingContext(
+        'isKotlin is false if src/main/kotlin directory does not exist',
+        () async {
+          final FlutterProject project = await someProject();
+          project.android.hostAppGradleRoot
+              .childDirectory('app')
+              .childDirectory('src')
+              .childDirectory('main')
+              .childDirectory('java')
+              .createSync(recursive: true);
+          expect(project.android.isKotlin, isFalse);
+        },
+        overrides: <Type, Generator>{
+          FileSystem: () => fs,
+          ProcessManager: () => FakeProcessManager.any(),
+          XcodeProjectInterpreter: () => xcodeProjectInterpreter,
+          FlutterProjectFactory: () => flutterProjectFactory,
+        },
+      );
     });
 
     group('With mocked context', () {
@@ -1877,6 +1982,39 @@ resolution: workspace
           <String>['child1', 'child2', 'child2_example'],
         );
       });
+
+      _testInMemory('supports glob patterns in workspace entries', () async {
+        final Directory directory = globals.fs.directory('myproject');
+        directory.childFile('pubspec.yaml')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('''
+name: parent
+flutter:
+workspace:
+- packages/*
+''');
+        directory.childDirectory('packages').childDirectory('child1').childFile('pubspec.yaml')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('''
+name: child1
+flutter:
+resolution: workspace
+''');
+        directory.childDirectory('packages').childDirectory('child2').childFile('pubspec.yaml')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('''
+name: child2
+flutter:
+resolution: workspace
+''');
+
+        expect(
+          FlutterProject.fromDirectory(directory).workspaceProjects
+              .map((FlutterProject subproject) => subproject.manifest.appName)
+              .toList(),
+          <String>['child1', 'child2'],
+        );
+      });
     });
   });
 
@@ -1890,6 +2028,10 @@ resolution: workspace
       testPlistParser = FakePlistParser();
       mockXcodeProjectInterpreter = FakeXcodeProjectInterpreter();
       flutterProjectFactory = FlutterProjectFactory(fileSystem: fs, logger: logger);
+      const buildContext = XcodeProjectBuildContext(scheme: 'Runner');
+      mockXcodeProjectInterpreter.buildSettingsByBuildContext[buildContext] = <String, String>{
+        IosProject.kProductBundleIdKey: 'io.flutter.someProject',
+      };
     });
 
     testUsingContext(
@@ -1920,12 +2062,8 @@ resolution: workspace
       },
     );
 
-    group('with bundle identifier', () {
+    group('with bundle identifier and multiple schemes', () {
       setUp(() {
-        const buildContext = XcodeProjectBuildContext(scheme: 'Runner');
-        mockXcodeProjectInterpreter.buildSettingsByBuildContext[buildContext] = <String, String>{
-          IosProject.kProductBundleIdKey: 'io.flutter.someProject',
-        };
         mockXcodeProjectInterpreter.xcodeProjectInfo = XcodeProjectInfo(
           <String>['Runner', 'WatchTarget'],
           <String>[],
@@ -1991,7 +2129,6 @@ resolution: workspace
               .childDirectory('WatchTarget')
               .childFile('Info.plist')
               .createSync(recursive: true);
-
           testPlistParser.setProperty(
             'WKCompanionAppBundleIdentifier',
             'io.flutter.someOTHERproject',
@@ -2048,7 +2185,10 @@ resolution: workspace
         () async {
           final FlutterProject project = await someProject();
           project.ios.xcodeProject.createSync();
-          const buildContext = XcodeProjectBuildContext(scheme: 'Runner', deviceId: '123');
+          const buildContext = XcodeProjectBuildContext(
+            scheme: 'Runner',
+            deviceId: '123',
+          ); // for substituteXcodeVariables call of plist parsing
           mockXcodeProjectInterpreter.buildSettingsByBuildContext[buildContext] = <String, String>{
             IosProject.kProductBundleIdKey: 'io.flutter.someProject',
           };
@@ -2089,14 +2229,8 @@ resolution: workspace
             INFOPLIST_KEY_WKCompanionAppBundleIdentifier = io.flutter.someProject
 ''');
 
-          const buildContext = XcodeProjectBuildContext(scheme: 'Runner', deviceId: '123');
-          mockXcodeProjectInterpreter.buildSettingsByBuildContext[buildContext] = <String, String>{
-            IosProject.kProductBundleIdKey: 'io.flutter.someProject',
-          };
-
           const watchBuildContext = XcodeProjectBuildContext(
             scheme: 'WatchScheme',
-            deviceId: '123',
             sdk: XcodeSdk.WatchOS,
           );
           mockXcodeProjectInterpreter.buildSettingsByBuildContext[watchBuildContext] =
@@ -2131,14 +2265,9 @@ resolution: workspace
         Build settings for action build and target "WatchTarget":
             INFOPLIST_KEY_WKCompanionAppBundleIdentifier = $(PRODUCT_BUNDLE_IDENTIFIER)
 ''');
-          const buildContext = XcodeProjectBuildContext(scheme: 'Runner', deviceId: '123');
-          mockXcodeProjectInterpreter.buildSettingsByBuildContext[buildContext] = <String, String>{
-            IosProject.kProductBundleIdKey: 'io.flutter.someProject',
-          };
 
           const watchBuildContext = XcodeProjectBuildContext(
             scheme: 'WatchScheme',
-            deviceId: '123',
             sdk: XcodeSdk.WatchOS,
           );
           mockXcodeProjectInterpreter.buildSettingsByBuildContext[watchBuildContext] =
@@ -2543,7 +2672,7 @@ class FakeXcodeProjectInterpreter extends Fake implements XcodeProjectInterprete
 
   @override
   Future<Map<String, String>> getBuildSettings(
-    String projectPath, {
+    XcodeBasedProject xcodeProject, {
     XcodeProjectBuildContext? buildContext,
     Duration timeout = const Duration(minutes: 1),
   }) async {
@@ -2554,7 +2683,11 @@ class FakeXcodeProjectInterpreter extends Fake implements XcodeProjectInterprete
   }
 
   @override
-  Future<XcodeProjectInfo> getInfo(String projectPath, {String? projectFilename}) async {
+  Future<XcodeProjectInfo> getInfo(
+    XcodeBasedProject xcodeProject, {
+    String? projectFilename,
+    required Directory buildDirectory,
+  }) async {
     return xcodeProjectInfo;
   }
 

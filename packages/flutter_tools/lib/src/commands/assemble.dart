@@ -46,10 +46,13 @@ var _kDefaultTargets = <Target>[
   // Linux targets
   const DebugBundleLinuxAssets(TargetPlatform.linux_x64),
   const DebugBundleLinuxAssets(TargetPlatform.linux_arm64),
+  const DebugBundleLinuxAssets(TargetPlatform.linux_riscv64),
   const ProfileBundleLinuxAssets(TargetPlatform.linux_x64),
   const ProfileBundleLinuxAssets(TargetPlatform.linux_arm64),
+  const ProfileBundleLinuxAssets(TargetPlatform.linux_riscv64),
   const ReleaseBundleLinuxAssets(TargetPlatform.linux_x64),
   const ReleaseBundleLinuxAssets(TargetPlatform.linux_arm64),
+  const ReleaseBundleLinuxAssets(TargetPlatform.linux_riscv64),
   const ReleaseAndroidApplication(),
   // This is a one-off rule for bundle and aot compat.
   const CopyFlutterBundle(),
@@ -94,6 +97,7 @@ class AssembleCommand extends FlutterCommand {
   AssembleCommand({bool verboseHelp = false, required BuildSystem buildSystem})
     : _verboseHelp = verboseHelp,
       _buildSystem = buildSystem {
+    requiresPubspecYaml();
     argParser.addMultiOption(
       'define',
       abbr: 'd',
@@ -190,7 +194,7 @@ class AssembleCommand extends FlutterCommand {
       return super.requiredArtifacts;
     }
 
-    final TargetPlatform targetPlatform = getTargetPlatformForName(platform);
+    final targetPlatform = TargetPlatform.fromName(platform);
     final DevelopmentArtifact? artifact = artifactFromTargetPlatform(targetPlatform);
     if (artifact != null) {
       return <DevelopmentArtifact>{artifact};
@@ -249,14 +253,27 @@ class AssembleCommand extends FlutterCommand {
       output = globals.fs.path.join(_flutterProject.directory.path, output);
     }
     final Artifacts artifacts = globals.artifacts!;
-    final result = Environment(
+
+    List<String> decodedDefines;
+    try {
+      decodedDefines = decodeDartDefines({
+        'dart-define': stringsArg('dart-define').join(','),
+      }, 'dart-define');
+    } on FormatException {
+      throwToolExit(
+        'Error parsing assemble command: The -Pdart-defines argument contains non-base64 encoded data. '
+        'Check your build command and try again.',
+      );
+    }
+
+    return Environment(
       outputDir: globals.fs.directory(output),
       buildDir: _flutterProject.directory
           .childDirectory('.dart_tool')
           .childDirectory('flutter_build'),
       projectDir: _flutterProject.directory,
       packageConfigPath: packageConfigPath(),
-      defines: _parseDefines([...stringsArg('define'), ...stringsArg('dart-define')]),
+      defines: _parseDefines([...stringsArg('define'), ...decodedDefines]),
       inputs: _parseDefines(stringsArg('input')),
       cacheDir: globals.cache.getRoot(),
       flutterRootDir: globals.fs.directory(Cache.flutterRoot),
@@ -269,12 +286,14 @@ class AssembleCommand extends FlutterCommand {
       engineVersion: artifacts.usesLocalArtifacts ? null : globals.flutterVersion.engineRevision,
       generateDartPluginRegistry: true,
     );
-    return result;
   }
 
   Map<String, String> _parseDefines(List<String> values) {
     final results = <String, String>{};
     for (final chunk in values) {
+      if (chunk.isEmpty) {
+        continue;
+      }
       final int indexEquals = chunk.indexOf('=');
       if (indexEquals == -1) {
         throwToolExit('Improperly formatted define flag: $chunk');
@@ -321,15 +340,6 @@ class AssembleCommand extends FlutterCommand {
       }
     }
     Target? target;
-    List<String> decodedDefines;
-    try {
-      decodedDefines = decodeDartDefines(_environment.defines, kDartDefines);
-    } on FormatException {
-      throwToolExit(
-        'Error parsing assemble command: your generated configuration may be out of date. '
-        "Try re-running 'flutter build ios' or the appropriate build command.",
-      );
-    }
     if (deferredTargets.isNotEmpty) {
       // Record to analytics that DeferredComponents is being used.
       globals.analytics.send(
@@ -341,7 +351,7 @@ class AssembleCommand extends FlutterCommand {
       );
     }
     if (_flutterProject.manifest.deferredComponents != null &&
-        decodedDefines.contains('validate-deferred-components=true') &&
+        _environment.defines['validate-deferred-components'] == 'true' &&
         deferredTargets.isNotEmpty &&
         !isDebug()) {
       // Add deferred components validation target that require loading units.

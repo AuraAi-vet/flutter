@@ -35,6 +35,7 @@ Future<void> updateGeneratedXcodeProperties({
   bool useMacOSConfig = false,
   String? buildDirOverride,
   String? configurationBuildDir,
+  bool printWarnings = false,
 }) async {
   final List<String> xcodeBuildSettings = await _xcodeBuildSettingsLines(
     project: project,
@@ -43,6 +44,7 @@ Future<void> updateGeneratedXcodeProperties({
     useMacOSConfig: useMacOSConfig,
     buildDirOverride: buildDirOverride,
     configurationBuildDir: configurationBuildDir,
+    printWarnings: printWarnings,
   );
 
   _updateGeneratedXcodePropertiesFile(
@@ -99,14 +101,18 @@ void _updateGeneratedEnvironmentVariablesScript({
   required List<String> xcodeBuildSettings,
   bool useMacOSConfig = false,
 }) {
-  final localsBuffer = StringBuffer();
+  final exportFileBuffer = StringBuffer();
+  final envBuffer = StringBuffer();
 
-  localsBuffer.writeln('#!/bin/sh');
-  localsBuffer.writeln('# This is a generated file; do not edit or check into version control.');
+  exportFileBuffer.writeln('#!/bin/sh');
+  exportFileBuffer.writeln(
+    '# This is a generated file; do not edit or check into version control.',
+  );
   for (final line in xcodeBuildSettings) {
     if (!line.contains('[')) {
       // Exported conditional Xcode build settings do not work.
-      localsBuffer.writeln('export "$line"');
+      exportFileBuffer.writeln('export "$line"');
+      envBuffer.writeln(line);
     }
   }
 
@@ -114,8 +120,14 @@ void _updateGeneratedEnvironmentVariablesScript({
       ? project.macos.generatedEnvironmentVariableExportScript
       : project.ios.generatedEnvironmentVariableExportScript;
   generatedModuleBuildPhaseScript.createSync(recursive: true);
-  generatedModuleBuildPhaseScript.writeAsStringSync(localsBuffer.toString());
+  generatedModuleBuildPhaseScript.writeAsStringSync(exportFileBuffer.toString());
   globals.os.chmod(generatedModuleBuildPhaseScript, '755');
+
+  final File envFile = useMacOSConfig
+      ? project.macos.generatedNativeIntegrationEnvironmentFile
+      : project.ios.generatedNativeIntegrationEnvironmentFile;
+  envFile.createSync(recursive: true);
+  envFile.writeAsStringSync(envBuffer.toString());
 }
 
 /// Build name parsed and validated from build info and manifest. Used for CFBundleShortVersionString.
@@ -149,6 +161,7 @@ Future<List<String>> _xcodeBuildSettingsLines({
   bool useMacOSConfig = false,
   String? buildDirOverride,
   String? configurationBuildDir,
+  required bool printWarnings,
 }) async {
   final xcodeBuildSettings = <String>[];
 
@@ -158,6 +171,13 @@ Future<List<String>> _xcodeBuildSettingsLines({
   // This holds because requiresProjectRoot is true for this command
   xcodeBuildSettings.add(
     'FLUTTER_APPLICATION_PATH=${globals.fs.path.normalize(project.directory.path)}',
+  );
+
+  final String packageDirectory = useMacOSConfig
+      ? project.macos.flutterFrameworkSwiftPackageDirectory.path
+      : project.ios.flutterFrameworkSwiftPackageDirectory.path;
+  xcodeBuildSettings.add(
+    'FLUTTER_FRAMEWORK_SWIFT_PACKAGE_PATH=${globals.fs.path.normalize(packageDirectory)}',
   );
 
   // Tell CocoaPods behavior to codesign in parallel with rest of scripts to speed it up.
@@ -233,7 +253,7 @@ Future<List<String>> _xcodeBuildSettingsLines({
     // (to run natively without Rosetta translation on an ARM Mac),
     // the app will fail to build unless it also excludes arm64 simulators.
     var excludedSimulatorArchs = 'i386';
-    if (!(await project.ios.pluginsSupportArmSimulator())) {
+    if (!(await project.ios.pluginsSupportArmSimulator(printWarnings: printWarnings))) {
       excludedSimulatorArchs += ' arm64';
     }
     xcodeBuildSettings.add(

@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import 'dart:js_interop';
+import 'dart:typed_data';
 
 import 'package:test/test.dart';
 import 'package:ui/src/engine.dart';
@@ -43,9 +44,18 @@ Future<void> matchPictureGolden(
   CkPicture picture, {
   required ui.Rect region,
 }) async {
-  final LayerSceneBuilder sb = LayerSceneBuilder();
+  final sb = LayerSceneBuilder();
   sb.pushOffset(0, 0);
   sb.addPicture(ui.Offset.zero, picture);
   await renderScene(sb.build());
   await matchGoldenFile(goldenFile, region: region);
+}
+
+/// Creates a [CkImage] from the given bytes.
+///
+/// This method works even if the CanvasKit build doesn't contain image codecs.
+Future<CkImage> createImageFromBytes(Uint8List bytes) async {
+  final ui.Codec codec = await renderer.instantiateImageCodec(bytes);
+  final ui.FrameInfo frame = await codec.getNextFrame();
+  return frame.image as CkImage;
 }

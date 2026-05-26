@@ -35,6 +35,11 @@ void PlatformView::DispatchPointerDataPacket(
   delegate_.OnPlatformViewDispatchPointerDataPacket(std::move(packet));
 }
 
+HitTestResponse PlatformView::HitTest(int64_t view_id,
+                                      const flutter::PointData offset) {
+  return delegate_.OnPlatformViewHitTest(view_id, offset);
+}
+
 void PlatformView::DispatchSemanticsAction(int64_t view_id,
                                            int32_t node_id,
                                            SemanticsAction action,
@@ -129,6 +134,10 @@ void PlatformView::UpdateSemantics(
     SemanticsNodeUpdates update,  // NOLINT(performance-unnecessary-value-param)
     // NOLINTNEXTLINE(performance-unnecessary-value-param)
     CustomAccessibilityActionUpdates actions) {}
+
+void PlatformView::SetApplicationLocale(
+    std::string locale  // NOLINT(performance-unnecessary-value-param)
+) {}
 
 void PlatformView::SetSemanticsTreeEnabled(
     bool enabled  // NOLINT(performance-unnecessary-value-param)

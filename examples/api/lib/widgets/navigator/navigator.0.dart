@@ -33,7 +33,7 @@ class HomePage extends StatelessWidget {
       style: Theme.of(context).textTheme.headlineMedium!,
       child: Container(
         color: Colors.white,
-        alignment: Alignment.center,
+        alignment: .center,
         child: const Text('Home Page'),
       ),
     );
@@ -51,11 +51,13 @@ class CollectPersonalInfoPage extends StatelessWidget {
         onTap: () {
           // This moves from the personal info page to the credentials page,
           // replacing this page with that one.
-          Navigator.of(context).pushReplacementNamed('signup/choose_credentials');
+          Navigator.of(
+            context,
+          ).pushReplacementNamed('signup/choose_credentials');
         },
         child: Container(
           color: Colors.lightBlue,
-          alignment: Alignment.center,
+          alignment: .center,
           child: const Text('Collect Personal Info Page'),
         ),
       ),
@@ -76,7 +78,7 @@ class ChooseCredentialsPage extends StatelessWidget {
         style: Theme.of(context).textTheme.headlineMedium!,
         child: Container(
           color: Colors.pinkAccent,
-          alignment: Alignment.center,
+          alignment: .center,
           child: const Text('Choose Credentials Page'),
         ),
       ),

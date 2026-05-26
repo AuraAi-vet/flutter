@@ -91,6 +91,14 @@ class Ticker {
 
   TickerFuture? _future;
 
+  /// If true, this ticker will request frames using
+  /// [SchedulerBinding.scheduleForcedFrame] instead of [SchedulerBinding.scheduleFrame].
+  ///
+  /// This allows granular control to advance frames even when frames are
+  /// typically disabled (e.g. when the app is in the background). This should be
+  /// used sparingly as it can increase battery usage.
+  bool forceFrames = false;
+
   /// Whether this ticker has been silenced.
   ///
   /// While silenced, a ticker's clock can still run, but the callback will not
@@ -173,6 +181,7 @@ class Ticker {
   ///
   /// By convention, this method is used by the object that receives the ticks
   /// (as opposed to the [TickerProvider] which created the ticker).
+  @awaitNotRequired
   TickerFuture start() {
     assert(() {
       if (isActive) {
@@ -282,9 +291,15 @@ class Ticker {
   void scheduleTick({bool rescheduling = false}) {
     assert(!scheduled);
     assert(shouldScheduleTick);
+    if (forceFrames) {
+      SchedulerBinding.instance.scheduleForcedFrame();
+    } else {
+      SchedulerBinding.instance.scheduleFrame();
+    }
     _animationId = SchedulerBinding.instance.scheduleFrameCallback(
       _tick,
       rescheduling: rescheduling,
+      scheduleNewFrame: false,
     );
   }
 
@@ -318,7 +333,7 @@ class Ticker {
     assert(_startTime == null);
     assert(_animationId == null);
     assert(
-      (originalTicker._future == null) == (originalTicker._startTime == null),
+      (originalTicker._future != null) || (originalTicker._startTime == null),
       'Cannot absorb Ticker after it has been disposed.',
     );
     if (originalTicker._future != null) {
@@ -371,7 +386,7 @@ class Ticker {
 
   @override
   String toString({bool debugIncludeStack = false}) {
-    final StringBuffer buffer = StringBuffer();
+    final buffer = StringBuffer();
     buffer.write('${objectRuntimeType(this, 'Ticker')}(');
     assert(() {
       buffer.write(debugLabel ?? '');
@@ -399,7 +414,15 @@ class Ticker {
 /// the `canceled` argument set to false (the default).
 ///
 /// If the [Ticker] is disposed without being stopped, or if it is stopped with
-/// `canceled` set to true, then this Future will never complete.
+/// `canceled` set to true, then this Future will never complete. For this
+/// reason, [TickerFuture]s should generally not be awaited, as they risk
+/// hanging indefinitely if the [Ticker] is canceled or muted before the
+/// animation completes.
+///
+/// Methods returning a [TickerFuture] are typically marked with
+/// `@awaitNotRequired` (or similar annotations) to signal that ignoring the
+/// Future is the intended pattern. Callers who need to react to completion
+/// should use [whenComplete] to handle both success and cancellation safely.
 ///
 /// This class works like a normal [Future], but has an additional property,
 /// [orCancel], which returns a derivative [Future] that completes with an error

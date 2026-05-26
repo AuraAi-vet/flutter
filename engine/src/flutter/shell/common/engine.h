@@ -162,6 +162,13 @@ class Engine final : public RuntimeDelegate, PointerDataDispatcher::Delegate {
         CustomAccessibilityActionUpdates actions) = 0;
 
     //--------------------------------------------------------------------------
+    /// @brief      Framework sets the application locale.
+    ///
+    /// @param[in]  locale  The application locale in BCP 47 format.
+    ///
+    virtual void OnEngineSetApplicationLocale(std::string locale) = 0;
+
+    //--------------------------------------------------------------------------
     /// @brief      When the Framework starts or stops generating semantics
     /// tree,
     ///             this new information needs to be conveyed to the underlying
@@ -823,6 +830,17 @@ class Engine final : public RuntimeDelegate, PointerDataDispatcher::Delegate {
                                  uint64_t trace_flow_id);
 
   //----------------------------------------------------------------------------
+  /// @brief      Requests to perform framework hit test from the engine.
+  ///
+  /// @param[in]  view_id The identifier of the flutter view that
+  ///                     should be hit tested.
+  /// @param[in]  offset  The position in the view that should be hit tested.
+  ///
+  /// @return     The hit test response.
+  ///
+  HitTestResponse HitTest(int64_t view_id, const flutter::PointData offset);
+
+  //----------------------------------------------------------------------------
   /// @brief      Notifies the engine that the embedder encountered an
   ///             accessibility related action on the specified node. This call
   ///             originates on the platform view and has been forwarded to the
@@ -1028,6 +1046,9 @@ class Engine final : public RuntimeDelegate, PointerDataDispatcher::Delegate {
   void UpdateSemantics(int64_t view_id,
                        SemanticsNodeUpdates update,
                        CustomAccessibilityActionUpdates actions) override;
+
+  // |RuntimeDelegate|
+  void SetApplicationLocale(std::string locale) override;
 
   // |RuntimeDelegate|
   void SetSemanticsTreeEnabled(bool enabled) override;

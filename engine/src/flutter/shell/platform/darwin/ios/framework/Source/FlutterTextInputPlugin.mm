@@ -80,6 +80,7 @@ static NSString* const kAutofillEditingValue = @"editingValue";
 static NSString* const kAutofillHints = @"hints";
 
 static NSString* const kAutocorrectionType = @"autocorrect";
+static NSString* const kEnableInlinePrediction = @"enableInlinePrediction";
 
 #pragma mark - Static Functions
 
@@ -863,6 +864,9 @@ static BOOL IsSelectionRectBoundaryCloserToPoint(CGPoint point,
     _smartQuotesType = UITextSmartQuotesTypeYes;
     _smartDashesType = UITextSmartDashesTypeYes;
     _selectionRects = [[NSArray alloc] init];
+    if (@available(iOS 17.0, *)) {
+      _inlinePredictionType = UITextInlinePredictionTypeNo;
+    }
 
     if (@available(iOS 14.0, *)) {
       UIScribbleInteraction* interaction = [[UIScribbleInteraction alloc] initWithDelegate:self];
@@ -1100,6 +1104,16 @@ static BOOL IsSelectionRectBoundaryCloserToPoint(CGPoint point,
   // The input field needs to be visible for the system autofill
   // to find it.
   self.isVisibleToAutofill = autofill || _secureTextEntry;
+
+  if (@available(iOS 17.0, *)) {
+    // iOS 17+ inline prediction. Only enabled when explicitly set to true;
+    // all other values (nil, NSNull, false) disable it.
+    id enableInlinePrediction = configuration[kEnableInlinePrediction];
+    BOOL enabled = enableInlinePrediction != nil && enableInlinePrediction != [NSNull null] &&
+                   [enableInlinePrediction boolValue];
+    self.inlinePredictionType =
+        enabled ? UITextInlinePredictionTypeYes : UITextInlinePredictionTypeNo;
+  }
 }
 
 - (UITextContentType)textContentType {
@@ -1593,6 +1607,14 @@ static BOOL IsSelectionRectBoundaryCloserToPoint(CGPoint point,
   } else {
     [self updateEditingState];
   }
+}
+
+// iOS 17+ inline predictive text uses setAttributedMarkedText:selectedRange:.
+// Forward to the existing setMarkedText implementation by extracting the plain string.
+- (void)setAttributedMarkedText:(NSAttributedString*)attributedString
+                  selectedRange:(NSRange)selectedRange API_AVAILABLE(ios(17.0)) {
+  NSString* markedText = attributedString ? [attributedString string] : @"";
+  [self setMarkedText:markedText selectedRange:selectedRange];
 }
 
 - (void)unmarkText {
@@ -2497,6 +2519,15 @@ static BOOL IsSelectionRectBoundaryCloserToPoint(CGPoint point,
 // The current password-autofillable input fields that have yet to be saved.
 @property(nonatomic, readonly)
     NSMutableDictionary<NSString*, FlutterTextInputView*>* autofillContext;
+// Whether the client disconnected while an autofill context was active.
+// The removeFromSuperview call is delayed until triggerAutofillSave
+// to avoid prematurely ending the autofill session.
+@property(nonatomic, readonly) BOOL pendingAutofillRemoval;
+// Whether the client disconnected without sending a hideText message.
+// This can indicate that the focus is being switched to a different
+// text field and to prevent flickering the removeFromSuperview
+// call should be delayed until hideTextInput.
+@property(nonatomic, readonly) BOOL pendingInputViewRemoval;
 @property(nonatomic, retain) FlutterTextInputView* activeView;
 @property(nonatomic, retain) FlutterTextInputViewAccessibilityHider* inputHider;
 @property(nonatomic, readonly, weak) id<FlutterViewResponder> viewResponder;
@@ -2511,6 +2542,8 @@ static BOOL IsSelectionRectBoundaryCloserToPoint(CGPoint point,
 
 @implementation FlutterTextInputPlugin {
   NSTimer* _enableFlutterTextInputViewAccessibilityTimer;
+  BOOL _pendingInputViewRemoval;
+  BOOL _pendingAutofillRemoval;
 }
 
 - (instancetype)initWithDelegate:(id<FlutterTextInputDelegate>)textInputDelegate {
@@ -2539,7 +2572,7 @@ static BOOL IsSelectionRectBoundaryCloserToPoint(CGPoint point,
 }
 
 - (void)dealloc {
-  [self hideTextInput];
+  [self reset];
 }
 
 - (void)removeEnableFlutterTextInputViewAccessibilityTimer {
@@ -2554,6 +2587,8 @@ static BOOL IsSelectionRectBoundaryCloserToPoint(CGPoint point,
 }
 
 - (void)reset {
+  [_autofillContext removeAllObjects];
+  [self clearTextInputClient];
   [self hideTextInput];
 }
 
@@ -2818,22 +2853,6 @@ static BOOL IsSelectionRectBoundaryCloserToPoint(CGPoint point,
 - (void)showTextInput {
   _activeView.viewResponder = _viewResponder;
   [self addToInputParentViewIfNeeded:_activeView];
-  // Adds a delay to prevent the text view from receiving accessibility
-  // focus in case it is activated during semantics updates.
-  //
-  // One common case is when the app navigates to a page with an auto
-  // focused text field. The text field will activate the FlutterTextInputView
-  // with a semantics update sent to the engine. The voiceover will focus
-  // the newly attached active view while performing accessibility update.
-  // This results in accessibility focus stuck at the FlutterTextInputView.
-  if (!_enableFlutterTextInputViewAccessibilityTimer) {
-    _enableFlutterTextInputViewAccessibilityTimer =
-        [NSTimer scheduledTimerWithTimeInterval:kUITextInputAccessibilityEnablingDelaySeconds
-                                         target:[FlutterTimerProxy proxyWithTarget:self]
-                                       selector:@selector(enableActiveViewAccessibility)
-                                       userInfo:nil
-                                        repeats:NO];
-  }
   [_activeView becomeFirstResponder];
 }
 
@@ -2845,11 +2864,17 @@ static BOOL IsSelectionRectBoundaryCloserToPoint(CGPoint point,
 }
 
 - (void)hideTextInput {
-  [self removeEnableFlutterTextInputViewAccessibilityTimer];
-  _activeView.accessibilityEnabled = NO;
   [_activeView resignFirstResponder];
-  [_activeView removeFromSuperview];
-  [_inputHider removeFromSuperview];
+
+  // Remove the input view from the view hierarchy after resigning first responder.
+  // This flag is set by clearTextInputClient when autofillContext is empty.
+  // Removing after resignFirstResponder (not during clearTextInputClient) prevents
+  // keyboard flicker when switching between text fields.
+  if (_pendingInputViewRemoval) {
+    [_activeView removeFromSuperview];
+    [_inputHider removeFromSuperview];
+    _pendingInputViewRemoval = NO;
+  }
 }
 
 - (void)triggerAutofillSave:(BOOL)saveEntries {
@@ -2866,6 +2891,15 @@ static BOOL IsSelectionRectBoundaryCloserToPoint(CGPoint point,
   }
 
   [self cleanUpViewHierarchy:YES clearText:!saveEntries delayRemoval:NO];
+
+  // Trigger removal of input hider if needed.
+  if (_pendingAutofillRemoval) {
+    [_activeView removeFromSuperview];
+    [_inputHider removeFromSuperview];
+    _pendingAutofillRemoval = NO;
+    _pendingInputViewRemoval = NO;
+  }
+
   [self addToInputParentViewIfNeeded:_activeView];
 }
 
@@ -2881,6 +2915,11 @@ static BOOL IsSelectionRectBoundaryCloserToPoint(CGPoint point,
 
 - (void)setTextInputClient:(int)client withConfiguration:(NSDictionary*)configuration {
   [self resetAllClientIds];
+
+  // Reset pending removal flags set by the previous clearTextInputClient call.
+  _pendingAutofillRemoval = NO;
+  _pendingInputViewRemoval = NO;
+
   // Hide all input views from autofill, only make those in the new configuration visible
   // to autofill.
   [self changeInputViewsAutofillVisibility:NO];
@@ -2917,6 +2956,23 @@ static BOOL IsSelectionRectBoundaryCloserToPoint(CGPoint point,
   // text fields immediately (which seems to make the keyboard flicker).
   // See: https://github.com/flutter/flutter/issues/64628.
   [self cleanUpViewHierarchy:NO clearText:YES delayRemoval:YES];
+
+  // Adds a delay to prevent the text view from receiving accessibility
+  // focus in case it is activated during semantics updates.
+  //
+  // One common case is when the app navigates to a page with an auto
+  // focused text field. The text field will activate the FlutterTextInputView
+  // with a semantics update sent to the engine. The voiceover will focus
+  // the newly attached active view while performing accessibility update.
+  // This results in accessibility focus stuck at the FlutterTextInputView.
+  if (!_enableFlutterTextInputViewAccessibilityTimer) {
+    _enableFlutterTextInputViewAccessibilityTimer =
+        [NSTimer scheduledTimerWithTimeInterval:kUITextInputAccessibilityEnablingDelaySeconds
+                                         target:[FlutterTimerProxy proxyWithTarget:self]
+                                       selector:@selector(enableActiveViewAccessibility)
+                                       userInfo:nil
+                                        repeats:NO];
+  }
 }
 
 // Creates and shows an input field that is not password related and has no autofill
@@ -3099,6 +3155,34 @@ static BOOL IsSelectionRectBoundaryCloserToPoint(CGPoint point,
 - (void)clearTextInputClient {
   [_activeView setTextInputClient:0];
   _activeView.frame = CGRectZero;
+
+  [self removeEnableFlutterTextInputViewAccessibilityTimer];
+  _activeView.accessibilityEnabled = NO;
+
+  // Schedule the removal of the input view and input hider.
+  // The removal is deferred to avoid keyboard flicker when switching between
+  // text fields, where clearTextInputClient is called before the next
+  // setTextInputClient.
+  // See: https://github.com/flutter/flutter/issues/180842
+  if (_autofillContext.count == 0) {
+    _pendingAutofillRemoval = NO;
+    if (_activeView.isFirstResponder) {
+      // Still first responder: defer removal to hideTextInput,
+      // right after resignFirstResponder dismisses the keyboard.
+      _pendingInputViewRemoval = YES;
+    } else {
+      // Already resigned (hideTextInput was called first):
+      // safe to remove immediately since the keyboard is already dismissed.
+      [_activeView removeFromSuperview];
+      [_inputHider removeFromSuperview];
+      _pendingInputViewRemoval = NO;
+    }
+  } else {
+    // Autofill context exists: removal will be performed in triggerAutofillSave,
+    // which is called by finishAutofillContext to save autofill entries.
+    _pendingAutofillRemoval = YES;
+    _pendingInputViewRemoval = NO;
+  }
 }
 
 - (void)updateConfig:(NSDictionary*)dictionary {

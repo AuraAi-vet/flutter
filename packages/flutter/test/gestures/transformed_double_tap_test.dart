@@ -3,14 +3,16 @@
 // found in the LICENSE file.
 
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  const kRed = Color(0xFFFF0000);
+
   testWidgets('kTouchSlop is evaluated in the global coordinate space when scaled up', (
     WidgetTester tester,
   ) async {
-    int doubleTapCount = 0;
+    var doubleTapCount = 0;
 
     final Key redContainer = UniqueKey();
     await tester.pumpWidget(
@@ -21,7 +23,7 @@ void main() {
             onDoubleTap: () {
               doubleTapCount++;
             },
-            child: Container(key: redContainer, width: 100, height: 150, color: Colors.red),
+            child: Container(key: redContainer, width: 100, height: 150, color: kRed),
           ),
         ),
       ),
@@ -51,7 +53,7 @@ void main() {
   testWidgets('kTouchSlop is evaluated in the global coordinate space when scaled down', (
     WidgetTester tester,
   ) async {
-    int doubleTapCount = 0;
+    var doubleTapCount = 0;
 
     final Key redContainer = UniqueKey();
     await tester.pumpWidget(
@@ -62,7 +64,7 @@ void main() {
             onDoubleTap: () {
               doubleTapCount++;
             },
-            child: Container(key: redContainer, width: 500, height: 500, color: Colors.red),
+            child: Container(key: redContainer, width: 500, height: 500, color: kRed),
           ),
         ),
       ),

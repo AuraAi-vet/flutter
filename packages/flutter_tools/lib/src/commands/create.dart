@@ -4,6 +4,7 @@
 
 import 'package:meta/meta.dart';
 import 'package:unified_analytics/unified_analytics.dart';
+import 'package:yaml/yaml.dart';
 
 import '../android/gradle_utils.dart' as gradle;
 import '../base/common.dart';
@@ -14,6 +15,7 @@ import '../base/terminal.dart';
 import '../base/utils.dart';
 import '../base/version.dart';
 import '../base/version_range.dart';
+import '../cache.dart';
 import '../convert.dart';
 import '../dart/pub.dart';
 import '../darwin/darwin.dart';
@@ -104,7 +106,13 @@ class CreateCommand extends FlutterCommand with CreateBase {
           'internally and should generally not be used manually.',
       hide: !verboseHelp,
     );
-    addPlatformsOptions(customHelp: kPlatformHelp);
+
+    final Map<String, String> platformsAllowedHelp = {
+      for (final String p in kAllCreatePlatforms) p: '',
+    };
+    platformsAllowedHelp['darwin'] =
+        'A shared platform for iOS and macOS. (only supported for plugins)';
+    addPlatformsOptions(customHelp: kPlatformHelp, allowedHelp: platformsAllowedHelp);
 
     final List<ParsedFlutterTemplateType> enabledTemplates =
         ParsedFlutterTemplateType.enabledValues(featureFlags);
@@ -291,6 +299,16 @@ class CreateCommand extends FlutterCommand with CreateBase {
     final String? sampleArgument = stringArg('sample');
     final bool emptyArgument = boolArg('empty');
     final FlutterTemplateType template = _getProjectType(projectDir);
+
+    if (template == FlutterTemplateType.pluginFfi) {
+      globals.printWarning(
+        'The "plugin_ffi" template is deprecated and will be removed in a future '
+        'version of Flutter. Use the "package_ffi" template instead. '
+        'For more information, see: '
+        'https://docs.flutter.dev/platform-integration/bind-native-code',
+      );
+    }
+
     if (sampleArgument != null) {
       if (template != FlutterTemplateType.app) {
         throwToolExit(
@@ -356,6 +374,7 @@ class CreateCommand extends FlutterCommand with CreateBase {
 
     final String dartSdk = globals.cache.dartSdkBuild;
     final bool includeIos;
+    final bool includeDarwin;
     final bool includeAndroid;
     final bool includeWeb;
     final bool includeLinux;
@@ -369,6 +388,7 @@ class CreateCommand extends FlutterCommand with CreateBase {
       includeLinux = false;
       includeMacos = false;
       includeWindows = false;
+      includeDarwin = false;
     } else if (template == FlutterTemplateType.package) {
       // The package template does not supports any platform.
       includeIos = false;
@@ -377,12 +397,32 @@ class CreateCommand extends FlutterCommand with CreateBase {
       includeLinux = false;
       includeMacos = false;
       includeWindows = false;
+      includeDarwin = false;
     } else {
-      includeIos = featureFlags.isIOSEnabled && platforms.contains('ios');
+      final bool darwinRequested = platforms.contains('darwin');
+      final bool darwinSupported =
+          (template == FlutterTemplateType.plugin) &&
+          featureFlags.isIOSEnabled &&
+          featureFlags.isMacOSEnabled;
+
+      if (darwinRequested && darwinSupported) {
+        includeDarwin = true;
+        includeIos = true;
+        includeMacos = true;
+      } else {
+        includeDarwin = false;
+        includeIos = featureFlags.isIOSEnabled && platforms.contains('ios');
+        includeMacos = featureFlags.isMacOSEnabled && platforms.contains('macos');
+        if (darwinRequested && !darwinSupported) {
+          globals.printWarning(
+            'Warning: To use the "darwin" platform, you must have both iOS and macOS enabled.\n'
+            'Run "flutter config --enable-ios --enable-macos-desktop" and try again.',
+          );
+        }
+      }
       includeAndroid = featureFlags.isAndroidEnabled && platforms.contains('android');
       includeWeb = featureFlags.isWebEnabled && platforms.contains('web');
       includeLinux = featureFlags.isLinuxEnabled && platforms.contains('linux');
-      includeMacos = featureFlags.isMacOSEnabled && platforms.contains('macos');
       includeWindows = featureFlags.isWindowsEnabled && platforms.contains('windows');
     }
 
@@ -403,6 +443,8 @@ class CreateCommand extends FlutterCommand with CreateBase {
     // The dart project_name is in snake_case, this variable is the Title Case of the Project Name.
     final String titleCaseProjectName = snakeCaseToTitleCase(projectName);
 
+    final bool withSwiftPackageManager = featureFlags.isSwiftPackageManagerEnabled;
+
     final Map<String, Object?> templateContext = createTemplateContext(
       organization: organization,
       projectName: projectName,
@@ -410,7 +452,7 @@ class CreateCommand extends FlutterCommand with CreateBase {
       projectDescription: stringArg('description'),
       flutterRoot: flutterRoot,
       withPlatformChannelPluginHook: generateMethodChannelsPlugin,
-      withSwiftPackageManager: featureFlags.isSwiftPackageManagerEnabled,
+      withSwiftPackageManager: withSwiftPackageManager,
       withFfiPluginHook: generateFfiPlugin,
       withFfiPackage: generateFfiPackage,
       withEmptyMain: emptyArgument,
@@ -418,6 +460,7 @@ class CreateCommand extends FlutterCommand with CreateBase {
       iosDevelopmentTeam: developmentTeam,
       ios: includeIos,
       android: includeAndroid,
+      darwin: includeDarwin,
       web: includeWeb,
       linux: includeLinux,
       macos: includeMacos,
@@ -504,6 +547,8 @@ class CreateCommand extends FlutterCommand with CreateBase {
         pubContext = PubContext.createPackage;
     }
 
+    _generatePubspecLock(relativeDir);
+
     if (shouldCallPubGet) {
       final FlutterProject project = FlutterProject.fromDirectory(relativeDir);
       await pub.get(
@@ -529,9 +574,9 @@ class CreateCommand extends FlutterCommand with CreateBase {
         await project.ensureReadyForPlatformSpecificTooling(
           releaseMode: ignoreReleaseModeSinceItsNotABuildAndHopeItWorks,
           androidPlatform: includeAndroid,
-          iosPlatform: includeIos,
+          iosPlatform: includeIos || includeDarwin,
           linuxPlatform: includeLinux,
-          macOSPlatform: includeMacos,
+          macOSPlatform: includeMacos || includeDarwin,
           windowsPlatform: includeWindows,
           webPlatform: includeWeb,
         );
@@ -698,20 +743,14 @@ Your $application code is in $relativeAppMain.
 
     final projectName = templateContext['projectName'] as String?;
     final templates = <String>['plugin', 'plugin_shared'];
-    if ((templateContext['ios'] == true || templateContext['macos'] == true) &&
-        featureFlags.isSwiftPackageManagerEnabled) {
-      templates.add('plugin_swift_package_manager');
-      templateContext['swiftLibraryName'] = projectName?.replaceAll('_', '-');
-      templateContext['swiftToolsVersion'] = minimumSwiftToolchainVersion;
-      templateContext['iosSupportedPlatform'] = FlutterDarwinPlatform.ios.supportedPackagePlatform
-          .format();
-      templateContext['macosSupportedPlatform'] = FlutterDarwinPlatform
-          .macos
-          .supportedPackagePlatform
-          .format();
-    } else {
-      templates.add('plugin_cocoapods');
-    }
+
+    final ({bool originalIos, bool originalMacos, bool? originalWithSwiftPackageManager})
+    darwinState = _updateContextAndTemplatesForDarwin(
+      templateContext: templateContext,
+      templates: templates,
+      directory: directory,
+      projectName: projectName,
+    );
 
     generatedCount += await renderMerged(
       templates,
@@ -720,6 +759,16 @@ Your $application code is in $relativeAppMain.
       overwrite: overwrite,
       printStatusWhenWriting: printStatusWhenWriting,
     );
+    // Restore the original ios, macos, and withSwiftPackageManager values.
+    // This is necessary in case the user requested the darwin platform,
+    // and we need to restore them for the example app generation.
+    templateContext['ios'] = darwinState.originalIos;
+    templateContext['macos'] = darwinState.originalMacos;
+    if (darwinState.originalWithSwiftPackageManager != null) {
+      templateContext['withSwiftPackageManager'] = darwinState.originalWithSwiftPackageManager;
+    } else {
+      templateContext.remove('withSwiftPackageManager');
+    }
 
     final FlutterProject project = FlutterProject.fromDirectory(directory);
     final generateAndroid = templateContext['android'] == true;
@@ -908,6 +957,78 @@ Your $application code is in $relativeAppMain.
     }
     return stringsArg('platforms');
   }
+
+  ({bool originalIos, bool originalMacos, bool? originalWithSwiftPackageManager})
+  _updateContextAndTemplatesForDarwin({
+    required Map<String, Object?> templateContext,
+    required List<String> templates,
+    required Directory directory,
+    required String? projectName,
+  }) {
+    final bool includeDarwin = templateContext['darwin'] as bool? ?? false;
+    final bool originalIos = templateContext['ios'] as bool? ?? false;
+    final bool originalMacos = templateContext['macos'] as bool? ?? false;
+    final originalWithSwiftPackageManager = templateContext['withSwiftPackageManager'] as bool?;
+
+    if (includeDarwin) {
+      // Temporarily disable ios/macos for the plugin generation
+      // so we don't get ios/ and macos/ directories in the plugin root.
+      templateContext['ios'] = false;
+      templateContext['macos'] = false;
+    }
+
+    final bool includeApplePlatforms =
+        templateContext['ios'] == true || templateContext['macos'] == true || includeDarwin;
+
+    if (!includeApplePlatforms) {
+      return (
+        originalIos: originalIos,
+        originalMacos: originalMacos,
+        originalWithSwiftPackageManager: originalWithSwiftPackageManager,
+      );
+    }
+
+    // Check if this is an existing plugin with CocoaPods structure (Classes/ directory).
+    // If so, preserve backward compatibility by using CocoaPods templates.
+    // For new plugins, use SwiftPM structure.
+    final bool hasExistingCocoaPodsStructure = const <String>['ios', 'macos', 'darwin'].any(
+      (String platform) =>
+          directory.childDirectory(platform).childDirectory('Classes').existsSync(),
+    );
+
+    final bool useSwiftPackageManagerStructure = !hasExistingCocoaPodsStructure;
+
+    templateContext['withSwiftPackageManager'] = useSwiftPackageManagerStructure;
+
+    if (useSwiftPackageManagerStructure) {
+      if (includeDarwin) {
+        templates.add('plugin_darwin_spm');
+      } else {
+        templates.add('plugin_swift_package_manager');
+      }
+      templateContext['swiftLibraryName'] = projectName?.replaceAll('_', '-');
+      templateContext['swiftToolsVersion'] = minimumSwiftToolchainVersion;
+      templateContext['iosSupportedPlatform'] = FlutterDarwinPlatform.ios.supportedPackagePlatform
+          .format();
+      templateContext['macosSupportedPlatform'] = FlutterDarwinPlatform
+          .macos
+          .supportedPackagePlatform
+          .format();
+    } else {
+      // Existing plugin with CocoaPods structure: preserve backward compatibility.
+      if (includeDarwin) {
+        templates.add('plugin_darwin_cocoapods');
+      } else {
+        templates.add('plugin_cocoapods');
+      }
+    }
+
+    return (
+      originalIos: originalIos,
+      originalMacos: originalMacos,
+      originalWithSwiftPackageManager: originalWithSwiftPackageManager,
+    );
+  }
 }
 
 // Determine what platforms are supported based on generated files.
@@ -984,6 +1105,10 @@ List<String> _getPlatformWarningList(List<String> requestedPlatforms) {
     if (requestedPlatforms.contains('macos') && !featureFlags.isMacOSEnabled) 'macos',
     if (requestedPlatforms.contains('windows') && !featureFlags.isWindowsEnabled) 'windows',
     if (requestedPlatforms.contains('linux') && !featureFlags.isLinuxEnabled) 'linux',
+    if (requestedPlatforms.contains('darwin') &&
+        !featureFlags.isMacOSEnabled &&
+        !featureFlags.isIOSEnabled)
+      'darwin',
   ];
 
   return platformsToWarn;
@@ -992,6 +1117,7 @@ List<String> _getPlatformWarningList(List<String> requestedPlatforms) {
 void _printWarningDisabledPlatform(List<String> platforms) {
   final desktop = <String>[];
   final web = <String>[];
+  final darwin = <String>[];
 
   for (final platform in platforms) {
     switch (platform) {
@@ -999,6 +1125,8 @@ void _printWarningDisabledPlatform(List<String> platforms) {
         web.add(platform);
       case 'macos' || 'windows' || 'linux':
         desktop.add(platform);
+      case 'darwin':
+        darwin.add(platform);
     }
   }
 
@@ -1015,6 +1143,12 @@ For more details, see: https://flutter.dev/to/add-desktop-support
     globals.printStatus('''
 The web is currently not supported on your local environment.
 For more details, see: https://flutter.dev/to/add-web-support
+''');
+  }
+  if (darwin.isNotEmpty) {
+    globals.printStatus('''
+The darwin platform is currently not supported on your local environment.
+You must have a macOS host with Xcode installed to develop for iOS or macOS.
 ''');
   }
 }
@@ -1220,4 +1354,71 @@ List<String>? _getBuildGradleConfigurationFilePaths(
       return null;
   }
   return buildGradleConfigurationFilePaths;
+}
+
+/// Generate a pubspec.lock file that locks the versions of all dependencies to
+/// the exact versions the Flutter SDK is tested with.
+///
+/// This ensures that a breaking change accidentally published to one of these
+/// packages that the Flutter SDK depends on cannot break the `flutter create`
+/// command.
+void _generatePubspecLock(Directory directory) {
+  final FileSystem fs = directory.fileSystem;
+  final String flutterRoot = Cache.flutterRoot!;
+  final flutterPubspecLock =
+      loadYaml(fs.file(fs.path.join(flutterRoot, 'pubspec.lock')).readAsStringSync()) as YamlMap;
+
+  final flutterPackages = flutterPubspecLock['packages'] as YamlMap;
+
+  final packages = <String, Object?>{
+    for (final package in gatherSdkPackageDependencies(directory))
+      package: flutterPackages[package],
+  };
+
+  /// We are writing json which is valid yaml. Pub will rewrite this file as pretty yaml after resolution.
+  directory
+      .childFile('pubspec.lock')
+      .writeAsStringSync(const JsonEncoder.withIndent('  ').convert({'packages': packages}));
+}
+
+/// Find the package names of external dependencies from the SDK packages that
+/// the package in [directory] depends on.
+List<String> gatherSdkPackageDependencies(Directory directory) {
+  final sdkPackages = <String>[];
+  final FileSystem fs = directory.fileSystem;
+  final pubspecYaml = loadYaml(directory.childFile('pubspec.yaml').readAsStringSync()) as YamlMap;
+
+  for (final MapEntry<dynamic, dynamic> dependency
+      in (pubspecYaml['dependencies'] as YamlMap).entries) {
+    final descriptor = dependency.value as Object?;
+    if (descriptor is YamlMap && descriptor['sdk'] == 'flutter') {
+      // a flutter dependency.
+      final name = dependency.key as String;
+      sdkPackages.add(name);
+    }
+  }
+
+  final result = <String>{};
+  // Initialized by FlutterCommandRunner on startup.
+  // So it is safe to access it here.
+  final String flutterRoot = Cache.flutterRoot!;
+  for (final sdkPackage in sdkPackages) {
+    final pubspecYaml =
+        loadYaml(
+              fs
+                  .file(fs.path.join(flutterRoot, 'packages', sdkPackage, 'pubspec.yaml'))
+                  .readAsStringSync(),
+            )
+            as YamlMap;
+    for (final MapEntry<dynamic, dynamic> dependency
+        in (pubspecYaml['dependencies'] as YamlMap).entries) {
+      final descriptor = dependency.value as Object?;
+      if (descriptor is String) {
+        // a hosted dependency.
+        final name = dependency.key as String;
+        result.add(name);
+      }
+    }
+  }
+  return result.toList();
 }

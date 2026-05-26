@@ -54,7 +54,7 @@ void main() {
   });
 
   testWidgets('Material2 - AboutListTile control test', (WidgetTester tester) async {
-    const FlutterLogo logo = FlutterLogo();
+    const logo = FlutterLogo();
 
     await tester.pumpWidget(
       MaterialApp(
@@ -121,7 +121,7 @@ void main() {
   });
 
   testWidgets('Material3 - AboutListTile control test', (WidgetTester tester) async {
-    const FlutterLogo logo = FlutterLogo();
+    const logo = FlutterLogo();
 
     await tester.pumpWidget(
       MaterialApp(
@@ -241,7 +241,7 @@ void main() {
   });
 
   testWidgets('LicensePage control test with all properties', (WidgetTester tester) async {
-    const FlutterLogo logo = FlutterLogo();
+    const logo = FlutterLogo();
 
     LicenseRegistry.addLicense(() {
       return Stream<LicenseEntry>.fromIterable(<LicenseEntry>[
@@ -307,6 +307,89 @@ void main() {
     expect(find.text('Another license'), findsOneWidget);
   });
 
+  testWidgets('_PackagesView includes safe area padding', (WidgetTester tester) async {
+    const safeAreaBottom = 34.0;
+    const safeAreaLeft = 20.0;
+    const safeAreaRight = 12.0;
+
+    LicenseRegistry.addLicense(() {
+      return Stream<LicenseEntry>.fromIterable(<LicenseEntry>[
+        const LicenseEntryWithLineBreaks(<String>['AAA'], 'BBB'),
+      ]);
+    });
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: MediaQuery(
+          data: MediaQueryData(
+            padding: EdgeInsets.only(
+              bottom: safeAreaBottom,
+              left: safeAreaLeft,
+              right: safeAreaRight,
+            ),
+          ),
+          child: Center(child: LicensePage()),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    final ListView listView = tester.widget<ListView>(find.byType(ListView));
+    final listPadding = listView.padding! as EdgeInsets;
+
+    expect(listPadding.bottom, safeAreaBottom);
+    expect(listPadding.left, safeAreaLeft);
+    expect(listPadding.right, safeAreaRight);
+  });
+
+  testWidgets('_PackageLicensePage includes safe area padding', (WidgetTester tester) async {
+    const safeAreaBottom = 34.0;
+    const safeAreaLeft = 20.0;
+    const safeAreaRight = 12.0;
+
+    LicenseRegistry.addLicense(() {
+      return Stream<LicenseEntry>.fromIterable(<LicenseEntry>[
+        const LicenseEntryWithLineBreaks(<String>['AAA'], 'BBB'),
+      ]);
+    });
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: MediaQuery(
+          data: MediaQueryData(
+            padding: EdgeInsets.only(
+              bottom: safeAreaBottom,
+              left: safeAreaLeft,
+              right: safeAreaRight,
+            ),
+          ),
+          child: Center(child: LicensePage()),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    // Navigate to the package license page.
+    await tester.tap(find.text('AAA'));
+    await tester.pumpAndSettle();
+
+    // Find the ListView that displays license entries and verify its padding
+    // includes the bottom safe area inset.
+    final ListView listView = tester.widget<ListView>(find.byType(ListView));
+    final listPadding = listView.padding! as EdgeInsets;
+
+    // The bottom padding should include both the gutter size and the bottom
+    // safe area padding from MediaQuery.
+    final expectedGutter = MediaQuery.widthOf(tester.element(find.byType(ListView))) >= 720
+        ? 24.0
+        : 12.0;
+    expect(listPadding.bottom, expectedGutter + safeAreaBottom);
+    expect(listPadding.left, expectedGutter + safeAreaLeft);
+    expect(listPadding.right, expectedGutter + safeAreaRight);
+  });
+
   testWidgets('Material2 - _PackageLicensePage title style without AppBarTheme', (
     WidgetTester tester,
   ) async {
@@ -316,8 +399,8 @@ void main() {
       ]);
     });
 
-    const TextStyle titleTextStyle = TextStyle(fontSize: 20, color: Colors.black, inherit: false);
-    const TextStyle subtitleTextStyle = TextStyle(fontSize: 15, color: Colors.red, inherit: false);
+    const titleTextStyle = TextStyle(fontSize: 20, color: Colors.black, inherit: false);
+    const subtitleTextStyle = TextStyle(fontSize: 15, color: Colors.red, inherit: false);
 
     await tester.pumpWidget(
       MaterialApp(
@@ -356,8 +439,8 @@ void main() {
       ]);
     });
 
-    const TextStyle titleTextStyle = TextStyle(fontSize: 20, color: Colors.black, inherit: false);
-    const TextStyle subtitleTextStyle = TextStyle(fontSize: 15, color: Colors.red, inherit: false);
+    const titleTextStyle = TextStyle(fontSize: 20, color: Colors.black, inherit: false);
+    const subtitleTextStyle = TextStyle(fontSize: 15, color: Colors.red, inherit: false);
 
     await tester.pumpWidget(
       MaterialApp(
@@ -390,7 +473,7 @@ void main() {
       ]);
     });
 
-    const TextStyle titleTextStyle = TextStyle(fontSize: 20, color: Colors.indigo);
+    const titleTextStyle = TextStyle(fontSize: 20, color: Colors.indigo);
 
     await tester.pumpWidget(
       MaterialApp(
@@ -423,7 +506,7 @@ void main() {
   });
 
   testWidgets('Material2 - LicensePage respects the notch', (WidgetTester tester) async {
-    const double safeareaPadding = 27.0;
+    const safeareaPadding = 27.0;
 
     LicenseRegistry.addLicense(() {
       return Stream<LicenseEntry>.fromIterable(<LicenseEntry>[
@@ -452,7 +535,7 @@ void main() {
   });
 
   testWidgets('Material3 - LicensePage respects the notch', (WidgetTester tester) async {
-    const double safeareaPadding = 27.0;
+    const safeareaPadding = 27.0;
 
     LicenseRegistry.addLicense(() {
       return Stream<LicenseEntry>.fromIterable(<LicenseEntry>[
@@ -480,7 +563,7 @@ void main() {
   });
 
   testWidgets('LicensePage returns early if unmounted', (WidgetTester tester) async {
-    final Completer<LicenseEntry> licenseCompleter = Completer<LicenseEntry>();
+    final licenseCompleter = Completer<LicenseEntry>();
     LicenseRegistry.addLicense(() {
       return Stream<LicenseEntry>.fromFuture(licenseCompleter.future);
     });
@@ -491,20 +574,20 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: Placeholder()));
 
     await tester.pumpAndSettle();
-    final FakeLicenseEntry licenseEntry = FakeLicenseEntry();
+    final licenseEntry = FakeLicenseEntry();
     licenseCompleter.complete(licenseEntry);
     expect(licenseEntry.packagesCalled, false);
   });
 
   testWidgets('LicensePage returns late if unmounted', (WidgetTester tester) async {
-    final Completer<LicenseEntry> licenseCompleter = Completer<LicenseEntry>();
+    final licenseCompleter = Completer<LicenseEntry>();
     LicenseRegistry.addLicense(() {
       return Stream<LicenseEntry>.fromFuture(licenseCompleter.future);
     });
 
     await tester.pumpWidget(const MaterialApp(home: LicensePage()));
     await tester.pump();
-    final FakeLicenseEntry licenseEntry = FakeLicenseEntry();
+    final licenseEntry = FakeLicenseEntry();
     licenseCompleter.complete(licenseEntry);
 
     await tester.pumpWidget(const MaterialApp(home: Placeholder()));
@@ -552,8 +635,8 @@ void main() {
   });
 
   testWidgets('showLicensePage uses nested navigator by default', (WidgetTester tester) async {
-    final LicensePageObserver rootObserver = LicensePageObserver();
-    final LicensePageObserver nestedObserver = LicensePageObserver();
+    final rootObserver = LicensePageObserver();
+    final nestedObserver = LicensePageObserver();
 
     await tester.pumpWidget(
       MaterialApp(
@@ -591,8 +674,8 @@ void main() {
   testWidgets('showLicensePage uses root navigator if useRootNavigator is true', (
     WidgetTester tester,
   ) async {
-    final LicensePageObserver rootObserver = LicensePageObserver();
-    final LicensePageObserver nestedObserver = LicensePageObserver();
+    final rootObserver = LicensePageObserver();
+    final nestedObserver = LicensePageObserver();
 
     await tester.pumpWidget(
       MaterialApp(
@@ -778,8 +861,8 @@ void main() {
   });
 
   testWidgets('showAboutDialog uses root navigator by default', (WidgetTester tester) async {
-    final AboutDialogObserver rootObserver = AboutDialogObserver();
-    final AboutDialogObserver nestedObserver = AboutDialogObserver();
+    final rootObserver = AboutDialogObserver();
+    final nestedObserver = AboutDialogObserver();
 
     await tester.pumpWidget(
       MaterialApp(
@@ -812,8 +895,8 @@ void main() {
   testWidgets('showAboutDialog uses nested navigator if useRootNavigator is false', (
     WidgetTester tester,
   ) async {
-    final AboutDialogObserver rootObserver = AboutDialogObserver();
-    final AboutDialogObserver nestedObserver = AboutDialogObserver();
+    final rootObserver = AboutDialogObserver();
+    final nestedObserver = AboutDialogObserver();
 
     await tester.pumpWidget(
       MaterialApp(
@@ -1035,8 +1118,8 @@ void main() {
   testWidgets("Material2 - LicensePage's color must be same whether loading or done", (
     WidgetTester tester,
   ) async {
-    const Color scaffoldColor = Color(0xFF123456);
-    const Color cardColor = Color(0xFF654321);
+    const scaffoldColor = Color(0xFF123456);
+    const cardColor = Color(0xFF654321);
 
     await tester.pumpWidget(
       MaterialApp(
@@ -1089,8 +1172,8 @@ void main() {
   testWidgets("Material3 - LicensePage's color must be same whether loading or done", (
     WidgetTester tester,
   ) async {
-    const Color scaffoldColor = Color(0xFF123456);
-    const Color cardColor = Color(0xFF654321);
+    const scaffoldColor = Color(0xFF123456);
+    const cardColor = Color(0xFF654321);
 
     await tester.pumpWidget(
       MaterialApp(
@@ -1237,7 +1320,7 @@ void main() {
   }, variant: TargetPlatformVariant.all());
 
   testWidgets('LicensePage padding', (WidgetTester tester) async {
-    const FlutterLogo logo = FlutterLogo();
+    const logo = FlutterLogo();
 
     await tester.pumpWidget(
       const MaterialApp(
@@ -1288,7 +1371,7 @@ void main() {
   ) async {
     // This is a regression test for https://github.com/flutter/flutter/issues/99559
 
-    const FlutterLogo logo = FlutterLogo();
+    const logo = FlutterLogo();
 
     await tester.pumpWidget(
       const MaterialApp(
@@ -1364,9 +1447,9 @@ void main() {
     WidgetTester tester,
   ) async {
     const TextDirection textDirection = TextDirection.ltr;
-    const Size defaultSize = Size(800.0, 600.0);
-    const Size wideSize = Size(1200.0, 600.0);
-    const String title = 'License ABC';
+    const defaultSize = Size(800.0, 600.0);
+    const wideSize = Size(1200.0, 600.0);
+    const title = 'License ABC';
     LicenseRegistry.addLicense(() {
       return Stream<LicenseEntry>.fromIterable(<LicenseEntry>[
         const LicenseEntryWithLineBreaks(<String>['ABC'], 'DEF'),
@@ -1425,9 +1508,9 @@ void main() {
     WidgetTester tester,
   ) async {
     const TextDirection textDirection = TextDirection.ltr;
-    const Size defaultSize = Size(800.0, 600.0);
-    const Size wideSize = Size(1200.0, 600.0);
-    const String title = 'License ABC';
+    const defaultSize = Size(800.0, 600.0);
+    const wideSize = Size(1200.0, 600.0);
+    const title = 'License ABC';
     LicenseRegistry.addLicense(() {
       return Stream<LicenseEntry>.fromIterable(<LicenseEntry>[
         const LicenseEntryWithLineBreaks(<String>['ABC'], 'DEF'),
@@ -1485,9 +1568,9 @@ void main() {
     WidgetTester tester,
   ) async {
     const TextDirection textDirection = TextDirection.rtl;
-    const Size defaultSize = Size(800.0, 600.0);
-    const Size wideSize = Size(1200.0, 600.0);
-    const String title = 'License ABC';
+    const defaultSize = Size(800.0, 600.0);
+    const wideSize = Size(1200.0, 600.0);
+    const title = 'License ABC';
     LicenseRegistry.addLicense(() {
       return Stream<LicenseEntry>.fromIterable(<LicenseEntry>[
         const LicenseEntryWithLineBreaks(<String>['ABC'], 'DEF'),
@@ -1549,9 +1632,9 @@ void main() {
     WidgetTester tester,
   ) async {
     const TextDirection textDirection = TextDirection.rtl;
-    const Size defaultSize = Size(800.0, 600.0);
-    const Size wideSize = Size(1200.0, 600.0);
-    const String title = 'License ABC';
+    const defaultSize = Size(800.0, 600.0);
+    const wideSize = Size(1200.0, 600.0);
+    const title = 'License ABC';
     LicenseRegistry.addLicense(() {
       return Stream<LicenseEntry>.fromIterable(<LicenseEntry>[
         const LicenseEntryWithLineBreaks(<String>['ABC'], 'DEF'),
@@ -1612,10 +1695,8 @@ void main() {
     WidgetTester tester,
   ) async {
     // This is a regression test for https://github.com/flutter/flutter/issues/108991
-    final ThemeData theme = ThemeData(
-      appBarTheme: const AppBarTheme(foregroundColor: Color(0xFFFFFFFF)),
-    );
-    const String title = 'License ABC';
+    final theme = ThemeData(appBarTheme: const AppBarTheme(foregroundColor: Color(0xFFFFFFFF)));
+    const title = 'License ABC';
     LicenseRegistry.addLicense(() {
       return Stream<LicenseEntry>.fromIterable(<LicenseEntry>[
         const LicenseEntryWithLineBreaks(<String>['ABC'], 'DEF'),
@@ -1639,8 +1720,7 @@ void main() {
 
     await tester.pumpAndSettle(); // Finish rendering the page.
 
-    final RenderParagraph renderParagraph =
-        tester.renderObject(find.text('ABC').last) as RenderParagraph;
+    final renderParagraph = tester.renderObject(find.text('ABC').last) as RenderParagraph;
 
     // License page title should not use AppBarTheme's foregroundColor.
     expect(renderParagraph.text.style!.color, isNot(theme.appBarTheme.foregroundColor));
@@ -1653,8 +1733,8 @@ void main() {
     WidgetTester tester,
   ) async {
     // This is a regression test for https://github.com/flutter/flutter/issues/108991
-    final ThemeData theme = ThemeData();
-    const String title = 'License ABC';
+    final theme = ThemeData();
+    const title = 'License ABC';
     LicenseRegistry.addLicense(() {
       return Stream<LicenseEntry>.fromIterable(<LicenseEntry>[
         const LicenseEntryWithLineBreaks(<String>['ABC'], 'DEF'),
@@ -1681,8 +1761,7 @@ void main() {
     // Master view is no longer visible.
     expect(find.text('License ABC'), findsNothing);
 
-    final RenderParagraph renderParagraph =
-        tester.renderObject(find.text('ABC').first) as RenderParagraph;
+    final renderParagraph = tester.renderObject(find.text('ABC').first) as RenderParagraph;
     expect(renderParagraph.text.style!.color, theme.textTheme.titleLarge!.color);
   });
 
@@ -1695,8 +1774,8 @@ void main() {
       WidgetTester tester,
     ) async {
       // This is a regression test for https://github.com/flutter/flutter/issues/108991
-      final ThemeData theme = ThemeData(useMaterial3: false);
-      const String title = 'License ABC';
+      final theme = ThemeData(useMaterial3: false);
+      const title = 'License ABC';
       LicenseRegistry.addLicense(() {
         return Stream<LicenseEntry>.fromIterable(<LicenseEntry>[
           const LicenseEntryWithLineBreaks(<String>['ABC'], 'DEF'),
@@ -1723,8 +1802,7 @@ void main() {
       // Master view is no longer visible.
       expect(find.text('License ABC'), findsNothing);
 
-      final RenderParagraph renderParagraph =
-          tester.renderObject(find.text('ABC').first) as RenderParagraph;
+      final renderParagraph = tester.renderObject(find.text('ABC').first) as RenderParagraph;
       expect(renderParagraph.text.style!.color, theme.primaryTextTheme.titleLarge!.color);
     });
   });
@@ -1732,10 +1810,7 @@ void main() {
   testWidgets('Adaptive AboutDialog shows correct widget on each platform', (
     WidgetTester tester,
   ) async {
-    for (final TargetPlatform platform in <TargetPlatform>[
-      TargetPlatform.iOS,
-      TargetPlatform.macOS,
-    ]) {
+    for (final platform in <TargetPlatform>[TargetPlatform.iOS, TargetPlatform.macOS]) {
       await tester.pumpWidget(
         MaterialApp(
           theme: ThemeData(platform: platform),
@@ -1760,7 +1835,7 @@ void main() {
       expect(find.byType(CupertinoDialogAction), findsWidgets);
     }
 
-    for (final TargetPlatform platform in <TargetPlatform>[
+    for (final platform in <TargetPlatform>[
       TargetPlatform.android,
       TargetPlatform.fuchsia,
       TargetPlatform.linux,
@@ -1792,10 +1867,7 @@ void main() {
   testWidgets('Adaptive AboutDialog closes correctly on each platform', (
     WidgetTester tester,
   ) async {
-    for (final TargetPlatform platform in <TargetPlatform>[
-      TargetPlatform.iOS,
-      TargetPlatform.macOS,
-    ]) {
+    for (final platform in <TargetPlatform>[TargetPlatform.iOS, TargetPlatform.macOS]) {
       await tester.pumpWidget(
         MaterialApp(
           theme: ThemeData(platform: platform),
@@ -1821,7 +1893,7 @@ void main() {
       expect(find.byType(CupertinoAlertDialog), findsNothing);
     }
 
-    for (final TargetPlatform platform in <TargetPlatform>[
+    for (final platform in <TargetPlatform>[
       TargetPlatform.android,
       TargetPlatform.fuchsia,
       TargetPlatform.linux,
@@ -1854,9 +1926,7 @@ void main() {
   });
 
   testWidgets('showLicensePage inherits ambient Theme', (WidgetTester tester) async {
-    final ThemeData theme = ThemeData(
-      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0XFFFF0000)),
-    );
+    final theme = ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: const Color(0XFFFF0000)));
 
     await tester.pumpWidget(
       MaterialApp(

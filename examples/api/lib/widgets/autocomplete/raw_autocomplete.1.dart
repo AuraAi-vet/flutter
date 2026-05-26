@@ -65,7 +65,9 @@ class AutocompleteCustomTypeExample extends StatelessWidget {
         return _userOptions.where((User option) {
           // Search based on User.toString, which includes both name and
           // email, even though the display string is just the name.
-          return option.toString().contains(textEditingValue.text.toLowerCase());
+          return option.toString().contains(
+            textEditingValue.text.toLowerCase(),
+          );
         });
       },
       displayStringForOption: _displayStringForOption,
@@ -85,15 +87,19 @@ class AutocompleteCustomTypeExample extends StatelessWidget {
             );
           },
       optionsViewBuilder:
-          (BuildContext context, AutocompleteOnSelected<User> onSelected, Iterable<User> options) {
+          (
+            BuildContext context,
+            AutocompleteOnSelected<User> onSelected,
+            Iterable<User> options,
+          ) {
             return Align(
-              alignment: Alignment.topLeft,
+              alignment: .topLeft,
               child: Material(
                 elevation: 4.0,
                 child: SizedBox(
                   height: 200.0,
                   child: ListView.builder(
-                    padding: const EdgeInsets.all(8.0),
+                    padding: const .all(8.0),
                     itemCount: options.length,
                     itemBuilder: (BuildContext context, int index) {
                       final User option = options.elementAt(index);
@@ -101,7 +107,9 @@ class AutocompleteCustomTypeExample extends StatelessWidget {
                         onTap: () {
                           onSelected(option);
                         },
-                        child: ListTile(title: Text(_displayStringForOption(option))),
+                        child: ListTile(
+                          title: Text(_displayStringForOption(option)),
+                        ),
                       );
                     },
                   ),

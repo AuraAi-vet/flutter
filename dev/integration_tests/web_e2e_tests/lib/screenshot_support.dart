@@ -18,11 +18,11 @@ Future<void> runTestWithScreenshots({
   int browserWidth = _kScreenshotWidth,
   int browserHeight = _kScreenshotHeight,
 }) async {
-  final WebFlutterDriver driver = await FlutterDriver.connect() as WebFlutterDriver;
+  final driver = await FlutterDriver.connect() as WebFlutterDriver;
 
   (await driver.webDriver.window).setSize(Rectangle<int>(0, 0, browserWidth, browserHeight));
 
-  test.integrationDriver(
+  await test.integrationDriver(
     driver: driver,
     onScreenshot:
         (String screenshotName, List<int> screenshotBytes, [Map<String, Object?>? args]) async {

@@ -64,7 +64,7 @@ class Matrix4 {
 
   /// Constructs a matrix that is the inverse of [other].
   factory Matrix4.inverted(Matrix4 other) {
-    final Matrix4 r = Matrix4.zero();
+    final r = Matrix4.zero();
     final double determinant = r.copyInverse(other);
     if (determinant == 0.0) {
       throw ArgumentError.value(other, 'other', 'Matrix cannot be inverted');
@@ -118,7 +118,7 @@ class Matrix4 {
   /// Returns a matrix that is the inverse of [other] if [other] is invertible,
   /// otherwise `null`.
   static Matrix4? tryInvert(Matrix4 other) {
-    final Matrix4 r = Matrix4.zero();
+    final r = Matrix4.zero();
     final double determinant = r.copyInverse(other);
     if (determinant == 0.0) {
       return null;
@@ -243,7 +243,7 @@ class Matrix4 {
 
   /// Translate this matrix by x, y, and z.
   void translate(double x, [double y = 0.0, double z = 0.0]) {
-    const double tw = 1.0;
+    const tw = 1.0;
     final double t1 =
         _m4storage[0] * x + _m4storage[4] * y + _m4storage[8] * z + _m4storage[12] * tw;
     final double t2 =
@@ -260,10 +260,10 @@ class Matrix4 {
 
   /// Scale this matrix by a [Vector3], [Vector4], or x,y,z
   void scale(double x, [double? y, double? z]) {
-    final double sx = x;
+    final sx = x;
     final double sy = y ?? x;
     final double sz = z ?? x;
-    const double sw = 1.0;
+    const sw = 1.0;
     _m4storage[15] *= sw;
     _m4storage[0] *= sx;
     _m4storage[1] *= sx;
@@ -974,7 +974,7 @@ class Matrix4 {
 
   /// Copies [this] into [array] starting at [offset].
   void copyIntoArray(List<num> array, [int offset = 0]) {
-    final int i = offset;
+    final i = offset;
     array[i + 15] = _m4storage[15];
     array[i + 14] = _m4storage[14];
     array[i + 13] = _m4storage[13];
@@ -995,7 +995,7 @@ class Matrix4 {
 
   /// Copies elements from [array] into [this] starting at [offset].
   void copyFromArray(List<double> array, [int offset = 0]) {
-    final int i = offset;
+    final i = offset;
     _m4storage[15] = array[i + 15];
     _m4storage[14] = array[i + 14];
     _m4storage[13] = array[i + 13];
@@ -1028,7 +1028,7 @@ class Matrix4 {
 
   @override
   String toString() {
-    String result = super.toString();
+    var result = super.toString();
     assert(() {
       String fmt(int index) {
         return storage[index].toStringAsFixed(2);
@@ -1075,7 +1075,7 @@ extension Vector3Extension on Vector3 {
 /// * https://bugs.chromium.org/p/v8/issues/detail?id=9199
 /// * https://bugs.chromium.org/p/v8/issues/detail?id=2022
 Float32List toMatrix32(Float64List matrix64) {
-  final Float32List matrix32 = Float32List(16);
+  final matrix32 = Float32List(16);
   matrix32[15] = matrix64[15];
   matrix32[14] = matrix64[14];
   matrix32[13] = matrix64[13];
@@ -1108,7 +1108,7 @@ Float32List toMatrix32(Float64List matrix64) {
 /// * https://bugs.chromium.org/p/v8/issues/detail?id=9199
 /// * https://bugs.chromium.org/p/v8/issues/detail?id=2022
 Float64List toMatrix64(Float32List matrix32) {
-  final Float64List matrix64 = Float64List(16);
+  final matrix64 = Float64List(16);
   matrix64[15] = matrix32[15];
   matrix64[14] = matrix32[14];
   matrix64[13] = matrix32[13];
@@ -1126,34 +1126,4 @@ Float64List toMatrix64(Float32List matrix32) {
   matrix64[1] = matrix32[1];
   matrix64[0] = matrix32[0];
   return matrix64;
-}
-
-// Stores matrix in a form that allows zero allocation transforms.
-// TODO(yjbanov): re-evaluate the need for this class. It may be an
-//                over-optimization. It is only used by `GradientLinear` in the
-//                HTML renderer. However that class creates a whole new WebGL
-//                context to render the gradient, then copies the resulting
-//                bitmap back into the destination canvas. This is multiple
-//                orders of magnitude more computation and data copying. Saving
-//                an allocation of one point is unlikely to save anything, but
-//                is guaranteed to add complexity (e.g. it's stateful).
-class FastMatrix32 {
-  FastMatrix32(this.matrix);
-
-  final Float32List matrix;
-  double transformedX = 0;
-  double transformedY = 0;
-
-  /// Transforms the point defined by [x] and [y] using the [matrix] and stores
-  /// the results in [transformedX] and [transformedY].
-  void transform(double x, double y) {
-    transformedX = matrix[12] + (matrix[0] * x) + (matrix[4] * y);
-    transformedY = matrix[13] + (matrix[1] * x) + (matrix[5] * y);
-  }
-
-  String debugToString() =>
-      '${matrix[0].toStringAsFixed(3)}, ${matrix[4].toStringAsFixed(3)}, ${matrix[8].toStringAsFixed(3)}, ${matrix[12].toStringAsFixed(3)}\n'
-      '${matrix[1].toStringAsFixed(3)}, ${matrix[5].toStringAsFixed(3)}, ${matrix[9].toStringAsFixed(3)}, ${matrix[13].toStringAsFixed(3)}\n'
-      '${matrix[2].toStringAsFixed(3)}, ${matrix[6].toStringAsFixed(3)}, ${matrix[10].toStringAsFixed(3)}, ${matrix[14].toStringAsFixed(3)}\n'
-      '${matrix[3].toStringAsFixed(3)}, ${matrix[7].toStringAsFixed(3)}, ${matrix[11].toStringAsFixed(3)}, ${matrix[15].toStringAsFixed(3)}\n';
 }

@@ -41,7 +41,7 @@ class HeroExample extends StatelessWidget {
               tag: 'hero-default-tween',
               child: BoxWidget(
                 size: const Size(50.0, 50.0),
-                color: Colors.red[700]!.withOpacity(0.5),
+                color: Colors.red[700]!.withValues(alpha: 0.5),
               ),
             ),
             title: const Text(
@@ -57,7 +57,7 @@ class HeroExample extends StatelessWidget {
               },
               child: BoxWidget(
                 size: const Size(50.0, 50.0),
-                color: Colors.blue[700]!.withOpacity(0.5),
+                color: Colors.blue[700]!.withValues(alpha: 0.5),
               ),
             ),
             title: const Text(
@@ -80,7 +80,7 @@ class HeroExample extends StatelessWidget {
         builder: (BuildContext context) => Scaffold(
           appBar: AppBar(title: const Text('Second Page')),
           body: Align(
-            alignment: Alignment.bottomRight,
+            alignment: .bottomRight,
             child: Stack(
               children: <Widget>[
                 Hero(
@@ -90,14 +90,14 @@ class HeroExample extends StatelessWidget {
                   },
                   child: BoxWidget(
                     size: const Size(400.0, 400.0),
-                    color: Colors.blue[700]!.withOpacity(0.5),
+                    color: Colors.blue[700]!.withValues(alpha: 0.5),
                   ),
                 ),
                 Hero(
                   tag: 'hero-default-tween',
                   child: BoxWidget(
                     size: const Size(400.0, 400.0),
-                    color: Colors.red[700]!.withOpacity(0.5),
+                    color: Colors.red[700]!.withValues(alpha: 0.5),
                   ),
                 ),
               ],

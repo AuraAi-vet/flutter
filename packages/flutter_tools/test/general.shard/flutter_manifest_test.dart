@@ -585,6 +585,64 @@ flutter:
     expect(flutterManifest.androidPackage, isNull);
   });
 
+  testWithoutContext('sharedDarwinSource is parsed correctly from plugin config', () {
+    const manifest = '''
+name: test
+flutter:
+  plugin:
+    implements: test
+    platforms:
+      ios:
+        pluginClass: HelloPlugin
+        sharedDarwinSource: true
+      macos:
+        pluginClass: HelloPlugin
+        sharedDarwinSource: true
+''';
+    final FlutterManifest flutterManifest = FlutterManifest.createFromString(
+      manifest,
+      logger: logger,
+    )!;
+
+    expect(flutterManifest.isPlugin, isTrue);
+    final Map<String, dynamic>? validSupportedPlatforms = flutterManifest.validSupportedPlatforms;
+    expect(validSupportedPlatforms, isNotNull);
+
+    expect(validSupportedPlatforms!['ios'], <String, dynamic>{
+      'pluginClass': 'HelloPlugin',
+      'sharedDarwinSource': true,
+    });
+
+    expect(validSupportedPlatforms['macos'], <String, dynamic>{
+      'pluginClass': 'HelloPlugin',
+      'sharedDarwinSource': true,
+    });
+  });
+
+  testWithoutContext('sharedDarwinSource is false when not present in plugin config', () {
+    const manifest = '''
+name: test
+flutter:
+  plugin:
+    implements: test
+    platforms:
+      ios:
+        pluginClass: MyPlugin
+''';
+    final FlutterManifest flutterManifest = FlutterManifest.createFromString(
+      manifest,
+      logger: logger,
+    )!;
+
+    expect(flutterManifest.isPlugin, isTrue);
+    final Map<String, dynamic>? validSupportedPlatforms = flutterManifest.validSupportedPlatforms;
+    expect(validSupportedPlatforms, isNotNull);
+
+    expect(validSupportedPlatforms!['ios'], <String, dynamic>{'pluginClass': 'MyPlugin'});
+
+    expect(validSupportedPlatforms['macos'], isNull);
+  });
+
   testWithoutContext('FlutterManifest handles an invalid plugin declaration', () {
     const manifest = '''
 name: test
@@ -1516,6 +1574,98 @@ flutter:
     expect(logger.errorText, 'Expected "default-flavor" to be a string, but got 3 (int).\n');
   });
 
+  testWithoutContext('FlutterManifest parses asset with platforms', () async {
+    const manifest = '''
+name: test
+dependencies:
+  flutter:
+    sdk: flutter
+flutter:
+  assets:
+    - path: assets/test.png
+      platforms:
+        - web
+        - android
+''';
+
+    final FlutterManifest flutterManifest = FlutterManifest.createFromString(
+      manifest,
+      logger: logger,
+    )!;
+
+    expect(flutterManifest.assets, hasLength(1));
+    final AssetsEntry entry = flutterManifest.assets.single;
+    expect(entry.uri.path, 'assets/test.png');
+    expect(entry.platforms, containsAll(<String>['web', 'android']));
+  });
+
+  testWithoutContext(
+    'FlutterManifest fails when platforms contains invalid platform name',
+    () async {
+      const manifest = '''
+name: test
+flutter:
+  assets:
+    - path: assets/test.png
+      platforms:
+        - toasterOS
+        - windows
+''';
+
+      final FlutterManifest? flutterManifest = FlutterManifest.createFromString(
+        manifest,
+        logger: logger,
+      );
+
+      expect(flutterManifest, isNull);
+      expect(logger.errorText, contains('Invalid platform'));
+    },
+  );
+
+  testWithoutContext('FlutterManifest supports empty platforms list', () async {
+    const manifest = '''
+name: test
+flutter:
+  assets:
+    - path: assets/test.png
+      platforms: []
+''';
+
+    final FlutterManifest flutterManifest = FlutterManifest.createFromString(
+      manifest,
+      logger: logger,
+    )!;
+
+    expect(flutterManifest.assets, hasLength(1));
+    final AssetsEntry entry = flutterManifest.assets.single;
+    expect(entry.uri.path, 'assets/test.png');
+    expect(entry.platforms, isEmpty);
+  });
+
+  testWithoutContext('FlutterManifest parses shaders with transformers', () async {
+    const manifest = '''
+name: test
+flutter:
+  shaders:
+    - path: shaders/test.frag
+      transformers:
+        - package: my_transformer
+          args: ["--foo", "bar"]
+''';
+
+    final FlutterManifest flutterManifest = FlutterManifest.createFromString(
+      manifest,
+      logger: logger,
+    )!;
+
+    expect(flutterManifest.shaders, hasLength(1));
+    final AssetsEntry shader = flutterManifest.shaders.single;
+    expect(shader.uri.path, 'shaders/test.frag');
+    expect(shader.transformers, hasLength(1));
+    expect(shader.transformers.single.package, 'my_transformer');
+    expect(shader.transformers.single.args, <String>['--foo', 'bar']);
+  });
+
   testWithoutContext('FlutterManifest.copyWith generates a valid manifest', () async {
     const manifest = '''
 name: test
@@ -1536,6 +1686,7 @@ flutter:
         AssetsEntry(
           uri: Uri(path: 'foo'),
           flavors: const <String>{'flavor'},
+          platforms: const <String>{'web', 'android', 'ios'},
           transformers: const <AssetTransformerEntry>[
             AssetTransformerEntry(package: 'package:foo', args: <String>['arg']),
           ],
@@ -1546,7 +1697,7 @@ flutter:
           FontAsset(Uri(path: 'assetUri'), weight: 100, style: 'normal'),
         ]),
       ],
-      shaders: <Uri>[Uri(path: 'shaderUri')],
+      shaders: <AssetsEntry>[AssetsEntry(uri: Uri(path: 'shaderUri'))],
       deferredComponents: <DeferredComponent>[
         DeferredComponent(
           name: 'deferredComponent',
@@ -1555,6 +1706,7 @@ flutter:
             AssetsEntry(
               uri: Uri(path: 'deferredComponentUri'),
               flavors: const <String>{'deferredComponentFlavor'},
+              platforms: const <String>{'macos'},
               transformers: const <AssetTransformerEntry>[
                 AssetTransformerEntry(
                   package: 'package:deferredComponent',
@@ -1578,6 +1730,10 @@ flutter:
     - path: foo
       flavors:
         - flavor
+      platforms:
+        - web
+        - android
+        - ios
       transformers:
         - package: package:foo
           args:
@@ -1598,6 +1754,8 @@ flutter:
         - path: deferredComponentUri
           flavors:
             - deferredComponentFlavor
+          platforms:
+            - macos
           transformers:
             - package: package:deferredComponent
               args:

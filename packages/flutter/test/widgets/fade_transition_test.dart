@@ -9,12 +9,12 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   testWidgets('FadeTransition', (WidgetTester tester) async {
     final DebugPrintCallback oldPrint = debugPrint;
-    final List<String> log = <String>[];
+    final log = <String>[];
     debugPrint = (String? message, {int? wrapWidth}) {
       log.add(message!);
     };
     debugPrintBuildScope = true;
-    final AnimationController controller = AnimationController(
+    final controller = AnimationController(
       vsync: const TestVSync(),
       duration: const Duration(seconds: 2),
     );
@@ -36,7 +36,7 @@ void main() {
     WidgetTester tester,
   ) async {
     final GlobalKey key = GlobalKey();
-    final AnimationController controller = AnimationController(
+    final controller = AnimationController(
       vsync: const TestVSync(),
       value: 1,
       duration: const Duration(seconds: 2),
@@ -53,5 +53,25 @@ void main() {
     controller.value = 0;
     await tester.pump();
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FadeTransition does not crash at zero area', (WidgetTester tester) async {
+    tester.view.physicalSize = Size.zero;
+    final controller = AnimationController(
+      vsync: const TestVSync(),
+      value: 1,
+      duration: const Duration(seconds: 2),
+    );
+    addTearDown(tester.view.reset);
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: FadeTransition(opacity: controller, child: const Placeholder()),
+        ),
+      ),
+    );
+    expect(tester.getSize(find.byType(FadeTransition)), Size.zero);
   });
 }

@@ -14,6 +14,11 @@ import '../base/os.dart';
 import 'devfs_proxy.dart';
 
 const webDevServerConfigFilePath = 'web_dev_config.yaml';
+
+/// Represents the default value for the web dev server.
+///
+/// Maps to `localhost` and/or `127.0.0.1`.
+const webDevAnyHostDefault = 'any';
 const _kLogEntryPrefix = '[WebDevServer]';
 const _kServer = 'server';
 const _kName = 'name';
@@ -25,6 +30,7 @@ const _kProxy = 'proxy';
 const _kHeaders = 'headers';
 const _kCertKeyPath = 'cert-key-path';
 const _kCertPath = 'cert-path';
+const _kBaseHref = 'base-href';
 
 /// Checks if a given [value] has the expected type [T].
 ///
@@ -41,10 +47,11 @@ T? _validateType<T>({required Object? value, required String fieldName}) {
 class WebDevServerConfig {
   const WebDevServerConfig({
     this.headers = const <String, String>{},
-    this.host = 'any',
+    this.host = webDevAnyHostDefault,
     this.port = 0,
     this.https,
     this.proxy = const <ProxyRule>[],
+    this.baseHref,
   });
 
   factory WebDevServerConfig.fromYaml(YamlMap yaml, Logger logger) {
@@ -95,12 +102,15 @@ class WebDevServerConfig {
       ...?proxyList?.whereType<YamlMap>().map((e) => ProxyRule.fromYaml(e, logger)).nonNulls,
     ];
 
+    final String? baseHref = _validateType<String>(value: yaml[_kBaseHref], fieldName: _kBaseHref);
+
     return WebDevServerConfig(
       headers: headers,
-      host: host ?? 'any',
+      host: host ?? webDevAnyHostDefault,
       port: port ?? 0,
       https: https == null ? null : HttpsConfig.fromYaml(https),
       proxy: proxyRules,
+      baseHref: baseHref,
     );
   }
 
@@ -147,19 +157,25 @@ class WebDevServerConfig {
   }
 
   /// Creates a copy of a [WebDevServerConfig] with optional overrides.
+  ///
+  /// The override parameters (`host`, `port`, `https`, `headers`, `proxy`)
+  /// take precedence over this config's values when provided (non-null).
+  /// This implements the CLI > config file precedence.
   WebDevServerConfig copyWith({
     String? host,
     int? port,
     HttpsConfig? https,
     Map<String, String>? headers,
     List<ProxyRule>? proxy,
+    String? baseHref,
   }) {
     return WebDevServerConfig(
       host: host ?? this.host,
       port: port ?? this.port,
       https: https ?? this.https,
-      headers: {...?headers, ...this.headers},
+      headers: {...this.headers, ...?headers},
       proxy: proxy ?? this.proxy,
+      baseHref: baseHref ?? this.baseHref,
     );
   }
 
@@ -168,6 +184,7 @@ class WebDevServerConfig {
   final int port;
   final HttpsConfig? https;
   final List<ProxyRule> proxy;
+  final String? baseHref;
 
   @override
   String toString() {
@@ -177,35 +194,59 @@ WebDevServerConfig:
   $_kHost: $host
   $_kPort: $port
   $_kHttps: $https
-  $_kProxy: $proxy''';
+  $_kProxy: $proxy
+  $_kBaseHref: $baseHref''';
   }
 }
 
 /// Represents the [HttpsConfig] for the web dev server
 @immutable
 class HttpsConfig {
-  const HttpsConfig({this.certPath, this.certKeyPath});
-
+  const HttpsConfig({required this.certPath, required this.certKeyPath});
   factory HttpsConfig.fromYaml(YamlMap yaml) {
     final String? certPath = _validateType<String>(value: yaml[_kCertPath], fieldName: _kCertPath);
+    if (certPath == null) {
+      throw ArgumentError.value(yaml, 'yaml', '"$_kCertPath" must be defined');
+    }
+
     final String? certKeyPath = _validateType<String>(
       value: yaml[_kCertKeyPath],
       fieldName: _kCertKeyPath,
     );
+    if (certKeyPath == null) {
+      throw ArgumentError.value(yaml, 'yaml', '"$_kCertKeyPath" must be defined');
+    }
 
     return HttpsConfig(certPath: certPath, certKeyPath: certKeyPath);
   }
 
-  /// Creates a copy of this [HttpsConfig] with optional overrides.
-  HttpsConfig copyWith({String? certPath, String? certKeyPath}) {
-    return HttpsConfig(
-      certPath: certPath ?? this.certPath,
-      certKeyPath: certKeyPath ?? this.certKeyPath,
-    );
-  }
+  /// If [tlsCertPath] and [tlsCertKeyPath] are both [String] return an instance.
+  ///
+  /// If they are both `null`, return `null`.
+  ///
+  /// Otherwise, throw an [Exception].
+  static HttpsConfig? parse(Object? tlsCertPath, Object? tlsCertKeyPath) =>
+      switch ((tlsCertPath, tlsCertKeyPath)) {
+        (final String certPath, final String certKeyPath) => HttpsConfig(
+          certPath: certPath,
+          certKeyPath: certKeyPath,
+        ),
+        (null, null) => null,
+        (final Object? certPath, final Object? certKeyPath) => throw ArgumentError(
+          'When providing TLS certificates, both `tlsCertPath` and '
+          '`tlsCertKeyPath` must be provided as strings. '
+          'Found: tlsCertPath: ${certPath ?? 'null'}, tlsCertKeyPath: ${certKeyPath ?? 'null'}',
+        ),
+      };
 
-  final String? certPath;
-  final String? certKeyPath;
+  /// Creates a copy of this [HttpsConfig] with optional overrides.
+  HttpsConfig copyWith({String? certPath, String? certKeyPath}) => HttpsConfig(
+    certPath: certPath ?? this.certPath,
+    certKeyPath: certKeyPath ?? this.certKeyPath,
+  );
+
+  final String certPath;
+  final String certKeyPath;
 
   @override
   String toString() {

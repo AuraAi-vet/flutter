@@ -52,7 +52,7 @@ void main() {
       processRunner: ProcessRunner(defaultWorkingDirectory: tempRoot, processManager: failsCanRun),
     );
 
-    final et = _engineTool(
+    final CommandRunner<int> et = _engineTool(
       RunCommand(
         environment: testEnvironment,
         // Intentionally left blank, none of these builds make it far enough.
@@ -102,7 +102,7 @@ void main() {
         targetDir: 'android_debug_arm64',
       );
 
-      final et = _engineTool(
+      final CommandRunner<int> et = _engineTool(
         RunCommand(
           environment: testEnvironment,
           configs: {
@@ -161,7 +161,7 @@ void main() {
           commandsRun.add(entry.command);
           for (final intercept in interceptCommands) {
             if (entry.command.first.endsWith(intercept.$1)) {
-              final result = intercept.$2(entry.command);
+              final FakeProcess? result = intercept.$2(entry.command);
               if (result != null) {
                 return result;
               }
@@ -365,6 +365,23 @@ void main() {
             '--local-engine-host',
             'host_debug',
           ]),
+        ]),
+      );
+    });
+
+    test('delegates to `flutter run` with --flutter-flags', () async {
+      await et.run([
+        'run',
+        '--config=android_debug_arm64',
+        '--flutter-flags=--foo',
+        '--flutter-flags=--bar=baz,foobar',
+        '--flutter-flags=--flag1 --flag2',
+      ]);
+
+      expect(
+        commandsRun,
+        containsAllInOrder([
+          containsAllInOrder(['flutter', 'run', '--foo', '--bar=baz,foobar', '--flag1', '--flag2']),
         ]),
       );
     });

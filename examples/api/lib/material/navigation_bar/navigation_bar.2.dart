@@ -32,12 +32,14 @@ class _HomeState extends State<Home> with TickerProviderStateMixin<Home> {
   int selectedIndex = 0;
 
   AnimationController buildFaderController() {
-    return AnimationController(vsync: this, duration: const Duration(milliseconds: 300))
-      ..addStatusListener((AnimationStatus status) {
-        if (status.isDismissed) {
-          setState(() {}); // Rebuild unselected destinations offstage.
-        }
-      });
+    return AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    )..addStatusListener((AnimationStatus status) {
+      if (status.isDismissed) {
+        setState(() {}); // Rebuild unselected destinations offstage.
+      }
+    });
   }
 
   @override
@@ -78,15 +80,16 @@ class _HomeState extends State<Home> with TickerProviderStateMixin<Home> {
   @override
   Widget build(BuildContext context) {
     return NavigatorPopHandler(
-      onPop: () {
-        final NavigatorState navigator = navigatorKeys[selectedIndex].currentState!;
+      onPopWithResult: (void result) {
+        final NavigatorState navigator =
+            navigatorKeys[selectedIndex].currentState!;
         navigator.pop();
       },
       child: Scaffold(
         body: SafeArea(
           top: false,
           child: Stack(
-            fit: StackFit.expand,
+            fit: .expand,
             children: allDestinations.map((Destination destination) {
               final int index = destination.index;
               final Widget view = destinationViews[index];
@@ -110,7 +113,9 @@ class _HomeState extends State<Home> with TickerProviderStateMixin<Home> {
               selectedIndex = index;
             });
           },
-          destinations: allDestinations.map<NavigationDestination>((Destination destination) {
+          destinations: allDestinations.map<NavigationDestination>((
+            Destination destination,
+          ) {
             return NavigationDestination(
               icon: Icon(destination.icon, color: destination.color),
               label: destination.title,
@@ -155,8 +160,8 @@ class RootPage extends StatelessWidget {
     final ButtonStyle buttonStyle = ElevatedButton.styleFrom(
       backgroundColor: destination.color,
       foregroundColor: Colors.white,
-      visualDensity: VisualDensity.comfortable,
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      visualDensity: .comfortable,
+      padding: const .symmetric(vertical: 12, horizontal: 16),
       textStyle: headlineSmall,
     );
 
@@ -169,7 +174,7 @@ class RootPage extends StatelessWidget {
       backgroundColor: destination.color[50],
       body: Center(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: .min,
           children: <Widget>[
             ElevatedButton(
               style: buttonStyle,
@@ -182,7 +187,11 @@ class RootPage extends StatelessWidget {
             ElevatedButton(
               style: buttonStyle,
               onPressed: () {
-                showDialog<void>(context: context, useRootNavigator: false, builder: _buildDialog);
+                showDialog<void>(
+                  context: context,
+                  useRootNavigator: false,
+                  builder: _buildDialog,
+                );
               },
               child: const Text('Local Dialog'),
             ),
@@ -192,7 +201,8 @@ class RootPage extends StatelessWidget {
               onPressed: () {
                 showDialog<void>(
                   context: context,
-                  useRootNavigator: true, // ignore: avoid_redundant_argument_values
+                  useRootNavigator:
+                      true, // ignore: avoid_redundant_argument_values
                   builder: _buildDialog,
                 );
               },
@@ -208,14 +218,14 @@ class RootPage extends StatelessWidget {
                       context: context,
                       builder: (BuildContext context) {
                         return Container(
-                          padding: const EdgeInsets.all(16),
+                          padding: const .all(16),
                           width: double.infinity,
                           child: Text(
                             '${destination.title} BottomSheet\n'
                             'Tap the back button to dismiss',
                             style: headlineSmall,
                             softWrap: true,
-                            textAlign: TextAlign.center,
+                            textAlign: .center,
                           ),
                         );
                       },
@@ -243,8 +253,8 @@ class ListPage extends StatelessWidget {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
     final ButtonStyle buttonStyle = OutlinedButton.styleFrom(
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: colorScheme.onSurface.withOpacity(0.12)),
+        borderRadius: .circular(8),
+        side: BorderSide(color: colorScheme.onSurface.withValues(alpha: 0.12)),
       ),
       foregroundColor: destination.color,
       fixedSize: const Size.fromHeight(64),
@@ -262,11 +272,15 @@ class ListPage extends StatelessWidget {
           itemCount: itemCount,
           itemBuilder: (BuildContext context, int index) {
             return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+              padding: const .symmetric(vertical: 4, horizontal: 8),
               child: OutlinedButton(
                 style: buttonStyle.copyWith(
                   backgroundColor: WidgetStatePropertyAll<Color>(
-                    Color.lerp(destination.color[100], Colors.white, index / itemCount)!,
+                    Color.lerp(
+                      destination.color[100],
+                      Colors.white,
+                      index / itemCount,
+                    )!,
                   ),
                 ),
                 onPressed: () {
@@ -317,14 +331,19 @@ class _TextPageState extends State<TextPage> {
       ),
       backgroundColor: widget.destination.color[50],
       body: Container(
-        padding: const EdgeInsets.all(32.0),
-        alignment: Alignment.center,
+        padding: const .all(32.0),
+        alignment: .center,
         child: TextField(
           controller: textController,
-          style: theme.primaryTextTheme.headlineMedium?.copyWith(color: widget.destination.color),
+          style: theme.primaryTextTheme.headlineMedium?.copyWith(
+            color: widget.destination.color,
+          ),
           decoration: InputDecoration(
             focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: widget.destination.color, width: 3.0),
+              borderSide: BorderSide(
+                color: widget.destination.color,
+                width: 3.0,
+              ),
             ),
           ),
         ),
@@ -334,7 +353,11 @@ class _TextPageState extends State<TextPage> {
 }
 
 class DestinationView extends StatefulWidget {
-  const DestinationView({super.key, required this.destination, required this.navigatorKey});
+  const DestinationView({
+    super.key,
+    required this.destination,
+    required this.navigatorKey,
+  });
 
   final Destination destination;
   final Key navigatorKey;

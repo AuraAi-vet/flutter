@@ -14,10 +14,11 @@ import 'package:ui/ui_web/src/ui_web.dart' as ui_web;
 class SkwasmRenderer extends Renderer {
   bool get isMultiThreaded => false;
 
+  bool get isWimp => false;
+
   @override
-  ui.Path combinePaths(ui.PathOperation op, ui.Path path1, ui.Path path2) {
-    throw UnimplementedError('Skwasm not implemented on this platform.');
-  }
+  DisposablePathConstructors get pathConstructors =>
+      throw UnimplementedError('Skwasm not implemented on this platform.');
 
   @override
   ui.ImageFilter composeImageFilters({
@@ -28,15 +29,11 @@ class SkwasmRenderer extends Renderer {
   }
 
   @override
-  ui.Path copyPath(ui.Path src) {
-    throw UnimplementedError('Skwasm not implemented on this platform.');
-  }
-
-  @override
   ui.ImageFilter createBlurImageFilter({
     double sigmaX = 0.0,
     double sigmaY = 0.0,
     ui.TileMode? tileMode,
+    ui.Rect? bounds,
   }) {
     throw UnimplementedError('Skwasm not implemented on this platform.');
   }
@@ -112,6 +109,11 @@ class SkwasmRenderer extends Renderer {
   }
 
   @override
+  WebParagraphPainter createWebParagraphPainter(WebParagraph paragraph) {
+    throw UnimplementedError('Skwasm not implemented on this platform.');
+  }
+
+  @override
   ui.ParagraphStyle createParagraphStyle({
     ui.TextAlign? textAlign,
     ui.TextDirection? textDirection,
@@ -126,11 +128,6 @@ class SkwasmRenderer extends Renderer {
     String? ellipsis,
     ui.Locale? locale,
   }) {
-    throw UnimplementedError('Skwasm not implemented on this platform.');
-  }
-
-  @override
-  ui.Path createPath() {
     throw UnimplementedError('Skwasm not implemented on this platform.');
   }
 
@@ -324,4 +321,8 @@ class SkwasmRenderer extends Renderer {
   void debugResetRasterizer() {
     throw UnimplementedError('Skwasm not implemented on this platform.');
   }
+
+  @override
+  Surface get pictureToImageSurface =>
+      throw UnimplementedError('Skwasm not implemented on this platform.');
 }

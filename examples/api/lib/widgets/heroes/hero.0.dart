@@ -30,7 +30,7 @@ class HeroExample extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Hero Sample')),
       body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: <Widget>[
           const SizedBox(height: 20.0),
           ListTile(
@@ -39,7 +39,9 @@ class HeroExample extends StatelessWidget {
               child: BoxWidget(size: Size(50.0, 50.0)),
             ),
             onTap: () => _gotoDetailsPage(context),
-            title: const Text('Tap on the icon to view hero animation transition.'),
+            title: const Text(
+              'Tap on the icon to view hero animation transition.',
+            ),
           ),
         ],
       ),
@@ -70,6 +72,10 @@ class BoxWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(width: size.width, height: size.height, color: Colors.blue);
+    return Container(
+      width: size.width,
+      height: size.height,
+      color: Colors.blue,
+    );
   }
 }

@@ -25,7 +25,11 @@ class AutocompleteExampleApp extends StatelessWidget {
 class AutocompleteBasicExample extends StatelessWidget {
   const AutocompleteBasicExample({super.key});
 
-  static const List<String> _options = <String>['aardvark', 'bobcat', 'chameleon'];
+  static const List<String> _options = <String>[
+    'aardvark',
+    'bobcat',
+    'chameleon',
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -57,13 +61,13 @@ class AutocompleteBasicExample extends StatelessWidget {
             Iterable<String> options,
           ) {
             return Align(
-              alignment: Alignment.topLeft,
+              alignment: .topLeft,
               child: Material(
                 elevation: 4.0,
                 child: SizedBox(
                   height: 200.0,
                   child: ListView.builder(
-                    padding: const EdgeInsets.all(8.0),
+                    padding: const .all(8.0),
                     itemCount: options.length,
                     itemBuilder: (BuildContext context, int index) {
                       final String option = options.elementAt(index);

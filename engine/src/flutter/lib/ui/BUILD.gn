@@ -135,6 +135,7 @@ source_set("ui") {
     "text/paragraph_builder.h",
     "ui_dart_state.cc",
     "ui_dart_state.h",
+    "window/hit_test_response.h",
     "window/key_data.cc",
     "window/key_data.h",
     "window/key_data_packet.cc",
@@ -151,6 +152,7 @@ source_set("ui") {
     "window/platform_message_response_dart.h",
     "window/platform_message_response_dart_port.cc",
     "window/platform_message_response_dart_port.h",
+    "window/point_data.h",
     "window/pointer_data.cc",
     "window/pointer_data.h",
     "window/pointer_data_packet.cc",
@@ -169,12 +171,13 @@ source_set("ui") {
     "//flutter/flow",
     "//flutter/shell/common:display",
     "//flutter/shell/common:platform_message_handler",
+    "//flutter/shell/common:snapshot_pixel_format",
     "//flutter/skia/modules/skparagraph",
     "//flutter/txt",
   ]
 
   deps = [
-    "$dart_src/runtime/bin:dart_io_api",
+    "$dart_src/runtime/bin:common_embedder_dart_io",
     "//flutter/assets",
     "//flutter/common",
     "//flutter/common/graphics",
@@ -186,6 +189,7 @@ source_set("ui") {
     "//flutter/skia",
     "//flutter/third_party/rapidjson",
     "//flutter/third_party/tonic",
+    "//third_party/abseil-cpp/absl/status:statusor",
     "//third_party/zlib",
   ]
 
@@ -197,6 +201,8 @@ source_set("ui") {
       "painting/image_decoder_impeller.h",
       "painting/image_encoding_impeller.cc",
       "painting/image_encoding_impeller.h",
+      "painting/pixel_deferred_image_gpu_impeller.cc",
+      "painting/pixel_deferred_image_gpu_impeller.h",
     ]
 
     deps += [
@@ -265,6 +271,7 @@ if (enable_unittests) {
       "painting/image_decoder_no_gl_unittests.h",
       "painting/image_dispose_unittests.cc",
       "painting/image_encoding_unittests.cc",
+      "painting/image_generator_apng_unittests.cc",
       "painting/image_generator_registry_unittests.cc",
       "painting/paint_unittests.cc",
       "painting/path_unittests.cc",
@@ -278,11 +285,14 @@ if (enable_unittests) {
     ]
 
     deps = [
+      ":display_list_deferred_image_unittests",
       ":ui",
+      ":ui_testing_mocks",
       ":ui_unittests_fixtures",
       "$dart_src/runtime/bin:elf_loader",
       "//flutter/common",
       "//flutter/impeller",
+      "//flutter/impeller/renderer/testing:mocks",
       "//flutter/lib/snapshot",
       "//flutter/shell/common:shell_test_fixture_sources",
       "//flutter/testing",
@@ -297,6 +307,39 @@ if (enable_unittests) {
       sources += [ "painting/image_decoder_unittests.cc" ]
 
       deps += [ "//flutter/testing:opengl" ]
+    }
+  }
+
+  source_set("display_list_deferred_image_unittests") {
+    testonly = true
+    sources = []
+
+    if (impeller_supports_rendering) {
+      sources +=
+          [ "painting/display_list_deferred_image_gpu_impeller_unittests.cc" ]
+    }
+
+    deps = [
+      ":ui",
+      ":ui_testing_mocks",
+      "//flutter/display_list",
+      "//flutter/fml",
+      "//flutter/impeller/renderer/testing:mocks",
+      "//flutter/testing:testing_lib",
+    ]
+  }
+
+  source_set("ui_testing_mocks") {
+    testonly = true
+    sources = [ "painting/testing/mocks.h" ]
+    public_deps = [
+      ":ui",
+      "//flutter/common/graphics",
+      "//flutter/display_list",
+      "//third_party/googletest:gmock",
+    ]
+    if (impeller_supports_rendering) {
+      public_deps += [ "//flutter/impeller/display_list" ]
     }
   }
 }

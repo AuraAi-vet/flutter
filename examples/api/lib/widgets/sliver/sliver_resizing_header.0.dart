@@ -44,7 +44,7 @@ class _ResizingHeaderExampleState extends State<ResizingHeaderExample> {
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(4),
+          padding: const .all(4),
           child: Scrollbar(
             controller: scrollController,
             child: CustomScrollView(
@@ -53,7 +53,10 @@ class _ResizingHeaderExampleState extends State<ResizingHeaderExample> {
                 SliverResizingHeader(
                   minExtentPrototype: ListHeader(text: 'One'),
                   maxExtentPrototype: ListHeader(text: 'One\nTwo\nThree'),
-                  child: ListHeader(text: 'SliverResizingHeader\nWith Two Optional\nLines of Text'),
+                  child: ListHeader(
+                    text:
+                        'SliverResizingHeader\nWith Two Optional\nLines of Text',
+                  ),
                 ),
                 ItemList(),
               ],
@@ -78,20 +81,22 @@ class ListHeader extends StatelessWidget {
 
     return Container(
       color: colorScheme.surface,
-      padding: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const .symmetric(horizontal: 4),
       child: Material(
         color: colorScheme.primaryContainer,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: .circular(8),
           side: BorderSide(width: 7, color: colorScheme.outline),
         ),
         child: Container(
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          alignment: .center,
+          padding: const .symmetric(vertical: 16),
           child: Text(
             text,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.headlineMedium!.copyWith(color: colorScheme.onPrimaryContainer),
+            textAlign: .center,
+            style: theme.textTheme.headlineMedium!.copyWith(
+              color: colorScheme.onPrimaryContainer,
+            ),
           ),
         ),
       ),
@@ -113,7 +118,10 @@ class ItemList extends StatelessWidget {
       itemBuilder: (BuildContext context, int index) {
         return Card(
           color: colorScheme.onSecondary,
-          child: ListTile(textColor: colorScheme.secondary, title: Text('Item $index')),
+          child: ListTile(
+            textColor: colorScheme.secondary,
+            title: Text('Item $index'),
+          ),
         );
       },
     );

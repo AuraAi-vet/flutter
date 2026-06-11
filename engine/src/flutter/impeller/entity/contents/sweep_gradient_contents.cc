@@ -14,9 +14,14 @@
 
 namespace impeller {
 
-SweepGradientContents::SweepGradientContents() = default;
+SweepGradientContents::SweepGradientContents(const Geometry* geometry)
+    : geometry_(geometry) {}
 
 SweepGradientContents::~SweepGradientContents() = default;
+
+const Geometry* SweepGradientContents::GetGeometry() const {
+  return geometry_;
+}
 
 void SweepGradientContents::SetCenterAndAngles(Point center,
                                                Degrees start_angle,
@@ -116,7 +121,8 @@ bool SweepGradientContents::RenderSSBO(const ContentContext& renderer,
         frag_info.colors_length = colors.size();
         auto color_buffer = data_host_buffer.Emplace(
             colors.data(), colors.size() * sizeof(StopData),
-            data_host_buffer.GetMinimumUniformAlignment());
+            renderer.GetDeviceCapabilities()
+                .GetMinimumStorageBufferAlignment());
 
         pass.SetCommandLabel("SweepGradientSSBOFill");
 

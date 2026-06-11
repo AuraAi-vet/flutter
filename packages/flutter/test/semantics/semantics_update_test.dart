@@ -2,12 +2,25 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/semantics.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../widgets/button_tester.dart';
+
+typedef SemanticsNodeUpdateObservation = ({
+  String label,
+  List<StringAttribute>? labelAttributes,
+  String value,
+  List<StringAttribute>? valueAttributes,
+  String hint,
+  List<StringAttribute>? hintAttributes,
+  Int32List childrenInTraversalOrder,
+  Float64List transform,
+});
 
 void main() {
   SemanticsUpdateTestBinding();
@@ -146,7 +159,7 @@ void main() {
       SemanticsUpdateBuilderSpy.observations[1]!.valueAttributes![0] is LocaleStringAttribute,
       isTrue,
     );
-    final LocaleStringAttribute localeAttribute =
+    final localeAttribute =
         SemanticsUpdateBuilderSpy.observations[1]!.valueAttributes![0] as LocaleStringAttribute;
     expect(localeAttribute.range, const TextRange(start: 0, end: 5));
     expect(localeAttribute.locale, const Locale('en', 'MX'));
@@ -176,6 +189,159 @@ void main() {
     SemanticsUpdateBuilderSpy.observations.clear();
     handle.dispose();
   });
+
+  testWidgets('Semantics update receives correct traversal transform with nested OverlayPortals', (
+    WidgetTester tester,
+  ) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    // Pumps a placeholder to trigger the warm up frame.
+    await tester.pumpWidget(
+      const Placeholder(),
+      // Stops right after the warm up frame.
+      phase: EnginePhase.build,
+    );
+    // The warm up frame will send update for an empty semantics tree. We
+    // ignore this one time update.
+    SemanticsUpdateBuilderSpy.observations.clear();
+    final controller1 = OverlayPortalController()..show();
+    final controller2 = OverlayPortalController()..show();
+
+    final entry = OverlayEntry(
+      builder: (BuildContext context) {
+        return OverlayPortal(
+          controller: controller1,
+          child: TestButton(onPressed: () {}, child: const Text('a')),
+          overlayChildBuilder: (BuildContext context) {
+            return Positioned(
+              left: 10,
+              top: 11,
+              child: OverlayPortal(
+                controller: controller2,
+                child: TestButton(onPressed: () {}, child: const Text('b')),
+                overlayChildBuilder: (BuildContext context) {
+                  // (100, 200) in 'b's coordinates.
+                  return Positioned(
+                    left: 110,
+                    top: 211,
+                    child: TestButton(onPressed: () {}, child: const Text('c')),
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
+    );
+    addTearDown(() {
+      entry
+        ..remove()
+        ..dispose();
+    });
+
+    // Builds the real widget tree.
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Overlay(initialEntries: <OverlayEntry>[entry]),
+      ),
+    );
+
+    // traversal parent of 'b',
+    expect(
+      SemanticsUpdateBuilderSpy.observations[4]!.transform,
+      Matrix4.translationValues(10.0, 11.0, 0.0).storage,
+    );
+    // 'b'
+    expect(SemanticsUpdateBuilderSpy.observations[5]!.transform, Matrix4.identity().storage);
+    // parent of 'c', inverse of node#4's transform.
+    expect(
+      SemanticsUpdateBuilderSpy.observations[6]!.transform,
+      Matrix4.translationValues(-10.0, -11.0, 0.0).storage,
+    );
+    // 'c'
+    expect(
+      SemanticsUpdateBuilderSpy.observations[7]!.transform,
+      Matrix4.translationValues(110.0, 211.0, 0.0).storage,
+    );
+    SemanticsUpdateBuilderSpy.observations.clear();
+    handle.dispose();
+  }, skip: kIsWeb); // intended: the web engine handles the transform calculation itself.
+
+  testWidgets('Semantics update removes detached OverlayPortal traversal child', (
+    WidgetTester tester,
+  ) async {
+    final SemanticsHandle handle = tester.ensureSemantics();
+    await tester.pumpWidget(const Placeholder(), phase: EnginePhase.build);
+    SemanticsUpdateBuilderSpy.observations.clear();
+
+    final controller = OverlayPortalController()..show();
+    final entry = OverlayEntry(
+      builder: (BuildContext context) {
+        return OverlayPortal(
+          controller: controller,
+          child: TestButton(onPressed: () {}, child: const Text('anchor')),
+          overlayChildBuilder: (BuildContext context) {
+            return TestButton(onPressed: () {}, child: const Text('menu item'));
+          },
+        );
+      },
+    );
+    addTearDown(() {
+      entry
+        ..remove()
+        ..dispose();
+    });
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Overlay(initialEntries: <OverlayEntry>[entry]),
+      ),
+    );
+
+    final int anchorId = SemanticsUpdateBuilderSpy.observations.entries.singleWhere((
+      MapEntry<int, SemanticsNodeUpdateObservation> entry,
+    ) {
+      return entry.value.label == 'anchor';
+    }).key;
+    final int menuItemId = SemanticsUpdateBuilderSpy.observations.entries.singleWhere((
+      MapEntry<int, SemanticsNodeUpdateObservation> entry,
+    ) {
+      return entry.value.label == 'menu item';
+    }).key;
+    expect(
+      SemanticsUpdateBuilderSpy.observations.values.any((
+        SemanticsNodeUpdateObservation observation,
+      ) {
+        return observation.childrenInTraversalOrder.contains(menuItemId);
+      }),
+      isTrue,
+    );
+
+    SemanticsUpdateBuilderSpy.observations.clear();
+    controller.hide();
+    await tester.pump();
+
+    expect(SemanticsUpdateBuilderSpy.observations.containsKey(menuItemId), isFalse);
+    expect(
+      SemanticsUpdateBuilderSpy.observations.values.any((
+        SemanticsNodeUpdateObservation observation,
+      ) {
+        return listEquals(observation.childrenInTraversalOrder, <int>[anchorId]);
+      }),
+      isTrue,
+    );
+    expect(
+      SemanticsUpdateBuilderSpy.observations.values.any((
+        SemanticsNodeUpdateObservation observation,
+      ) {
+        return observation.childrenInTraversalOrder.contains(menuItemId);
+      }),
+      isFalse,
+    );
+    SemanticsUpdateBuilderSpy.observations.clear();
+    handle.dispose();
+  }, skip: kIsWeb); // intended: the web engine handles the traversal order itself.
 }
 
 class SemanticsUpdateTestBinding extends AutomatedTestWidgetsFlutterBinding {
@@ -203,6 +369,7 @@ class SemanticsUpdateBuilderSpy extends Fake implements ui.SemanticsUpdateBuilde
     required int platformViewId,
     required int scrollChildren,
     required int scrollIndex,
+    required int? traversalParent,
     required double scrollPosition,
     required double scrollExtentMax,
     required double scrollExtentMin,
@@ -221,6 +388,7 @@ class SemanticsUpdateBuilderSpy extends Fake implements ui.SemanticsUpdateBuilde
     String? tooltip,
     TextDirection? textDirection,
     required Float64List transform,
+    required Float64List hitTestTransform,
     required Int32List childrenInTraversalOrder,
     required Int32List childrenInHitTestOrder,
     required Int32List additionalActions,
@@ -229,12 +397,15 @@ class SemanticsUpdateBuilderSpy extends Fake implements ui.SemanticsUpdateBuilde
     SemanticsRole role = SemanticsRole.none,
     required List<String>? controlsNodes,
     SemanticsValidationResult validationResult = SemanticsValidationResult.none,
+    ui.SemanticsHitTestBehavior hitTestBehavior = ui.SemanticsHitTestBehavior.defer,
     required ui.SemanticsInputType inputType,
     required ui.Locale? locale,
+    required String minValue,
+    required String maxValue,
   }) {
     // Makes sure we don't send the same id twice.
     assert(!observations.containsKey(id));
-    observations[id] = SemanticsNodeUpdateObservation(
+    observations[id] = (
       label: label,
       labelAttributes: labelAttributes,
       hint: hint,
@@ -242,6 +413,7 @@ class SemanticsUpdateBuilderSpy extends Fake implements ui.SemanticsUpdateBuilde
       value: value,
       valueAttributes: valueAttributes,
       childrenInTraversalOrder: childrenInTraversalOrder,
+      transform: transform,
     );
   }
 
@@ -251,24 +423,4 @@ class SemanticsUpdateBuilderSpy extends Fake implements ui.SemanticsUpdateBuilde
 
   @override
   ui.SemanticsUpdate build() => _builder.build();
-}
-
-class SemanticsNodeUpdateObservation {
-  const SemanticsNodeUpdateObservation({
-    required this.label,
-    this.labelAttributes,
-    required this.value,
-    this.valueAttributes,
-    required this.hint,
-    this.hintAttributes,
-    required this.childrenInTraversalOrder,
-  });
-
-  final String label;
-  final List<StringAttribute>? labelAttributes;
-  final String value;
-  final List<StringAttribute>? valueAttributes;
-  final String hint;
-  final List<StringAttribute>? hintAttributes;
-  final Int32List childrenInTraversalOrder;
 }

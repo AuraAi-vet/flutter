@@ -26,13 +26,18 @@ class FrameBuilderExample extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(),
-        borderRadius: BorderRadius.circular(20),
+        border: .all(),
+        borderRadius: .circular(20),
       ),
       child: Image.network(
         'https://flutter.github.io/assets-for-api-docs/assets/widgets/puffin.jpg',
         frameBuilder:
-            (BuildContext context, Widget child, int? frame, bool wasSynchronouslyLoaded) {
+            (
+              BuildContext context,
+              Widget child,
+              int? frame,
+              bool wasSynchronouslyLoaded,
+            ) {
               if (wasSynchronouslyLoaded) {
                 return child;
               }

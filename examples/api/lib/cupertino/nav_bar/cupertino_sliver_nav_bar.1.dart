@@ -14,7 +14,7 @@ class SliverNavBarApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const CupertinoApp(
-      theme: CupertinoThemeData(brightness: Brightness.light),
+      theme: CupertinoThemeData(brightness: .light),
       home: SliverNavBarExample(),
     );
   }
@@ -35,11 +35,11 @@ class SliverNavBarExample extends StatelessWidget {
           ),
           SliverFillRemaining(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10.0),
+              padding: const .symmetric(horizontal: 10.0),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                mainAxisAlignment: .spaceEvenly,
                 children: <Widget>[
-                  const Text('Drag me up', textAlign: TextAlign.center),
+                  const Text('Drag me up', textAlign: .center),
                   CupertinoButton.filled(
                     onPressed: () {
                       Navigator.push(
@@ -59,7 +59,9 @@ class SliverNavBarExample extends StatelessWidget {
                         context,
                         CupertinoPageRoute<Widget>(
                           builder: (BuildContext context) {
-                            return const NextPage(bottomMode: NavigationBarBottomMode.always);
+                            return const NextPage(
+                              bottomMode: NavigationBarBottomMode.always,
+                            );
                           },
                         ),
                       );
@@ -77,7 +79,10 @@ class SliverNavBarExample extends StatelessWidget {
 }
 
 class NextPage extends StatefulWidget {
-  const NextPage({super.key, this.bottomMode = NavigationBarBottomMode.automatic});
+  const NextPage({
+    super.key,
+    this.bottomMode = NavigationBarBottomMode.automatic,
+  });
 
   final NavigationBarBottomMode bottomMode;
 
@@ -100,7 +105,7 @@ class _NextPageState extends State<NextPage> {
             backgroundColor: CupertinoColors.systemYellow,
             border: Border(
               bottom: BorderSide(
-                color: brightness == Brightness.light
+                color: brightness == .light
                     ? CupertinoColors.black
                     : CupertinoColors.white,
               ),
@@ -132,17 +137,17 @@ class _NextPageState extends State<NextPage> {
             child: searchIsActive
                 ? ColoredBox(
                     color: CupertinoColors.extraLightBackgroundGray,
-                    child: Center(child: Text(text, textAlign: TextAlign.center)),
+                    child: Center(child: Text(text, textAlign: .center)),
                   )
                 : const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16.0),
+                    padding: .symmetric(horizontal: 16.0),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      mainAxisAlignment: .spaceEvenly,
                       children: <Widget>[
-                        Text('Drag me up', textAlign: TextAlign.center),
+                        Text('Drag me up', textAlign: .center),
                         Text(
                           'Tap on the search field to open the search view',
-                          textAlign: TextAlign.center,
+                          textAlign: .center,
                         ),
                       ],
                     ),

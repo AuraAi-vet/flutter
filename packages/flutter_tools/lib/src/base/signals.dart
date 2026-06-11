@@ -6,10 +6,10 @@ import 'dart:async';
 
 import 'package:meta/meta.dart';
 
-import '../base/process.dart';
 import '../globals.dart' as globals;
 import 'async_guard.dart';
 import 'io.dart';
+import 'process.dart';
 
 typedef SignalHandler = FutureOr<void> Function(ProcessSignal signal);
 
@@ -53,7 +53,7 @@ class LocalSignals implements Signals {
   LocalSignals._(this.exitSignals, {ShutdownHooks? shutdownHooks})
     : _shutdownHooks = shutdownHooks ?? globals.shutdownHooks;
 
-  static var instance = LocalSignals._(Signals.defaultExitSignals);
+  static LocalSignals instance = LocalSignals._(Signals.defaultExitSignals);
 
   final List<ProcessSignal> exitSignals;
   final ShutdownHooks _shutdownHooks;

@@ -45,7 +45,11 @@ class SafeAreaExampleApp extends StatelessWidget {
         builder: (BuildContext context) => Scaffold(
           appBar: Toggle.appBar.of(context) ? appBar : null,
           body: const DefaultTextStyle(
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: .w600,
+              color: Colors.black,
+            ),
             child: Center(child: SafeAreaExample()),
           ),
         ),
@@ -90,7 +94,10 @@ sealed class Value implements Enum {
 
   List<Widget> get controls;
 
-  static const List<Value> allValues = <Value>[...Inset.values, ...Toggle.values];
+  static const List<Value> allValues = <Value>[
+    ...Inset.values,
+    ...Toggle.values,
+  ];
 }
 
 enum Inset implements Value {
@@ -109,7 +116,8 @@ enum Inset implements Value {
     bottom => model.insets.bottom,
   };
 
-  double of(BuildContext context) => _getValue(Model.of<_InsetModel>(context, this));
+  double of(BuildContext context) =>
+      _getValue(Model.of<_InsetModel>(context, this));
 
   @override
   List<Widget> get controls => <Widget>[
@@ -141,7 +149,8 @@ enum Toggle implements Value {
     safeArea => model.buildSafeArea,
   };
 
-  bool of(BuildContext context) => _getValue(Model.of<_ToggleModel>(context, this));
+  bool of(BuildContext context) =>
+      _getValue(Model.of<_ToggleModel>(context, this));
 
   @override
   List<Widget> get controls => <Widget>[
@@ -169,7 +178,9 @@ abstract class Model<E extends Value> extends InheritedModel<E> {
 
   @override
   bool updateShouldNotifyDependent(Model<E> oldWidget, Set<E> dependencies) {
-    return dependencies.any((E data) => data._getValue(this) != data._getValue(oldWidget));
+    return dependencies.any(
+      (E data) => data._getValue(this) != data._getValue(oldWidget),
+    );
   }
 }
 
@@ -198,7 +209,7 @@ class Insets extends UniqueWidget<InsetsState> {
 class InsetsState extends State<Insets> {
   static InsetsState get instance => const Insets().currentState!;
 
-  EdgeInsets insets = const EdgeInsets.fromLTRB(8, 25, 8, 12);
+  EdgeInsets insets = const .fromLTRB(8, 25, 8, 12);
   void changeInset(Inset inset, double value) {
     setState(() {
       insets = switch (inset) {
@@ -219,7 +230,7 @@ class InsetsState extends State<Insets> {
   @override
   Widget build(BuildContext context) {
     final Widget topNotch = ClipRRect(
-      borderRadius: BorderRadius.vertical(bottom: Radius.circular(insets.top)),
+      borderRadius: .vertical(bottom: Radius.circular(insets.top)),
       child: SizedBox(
         height: insets.top,
         child: const FractionallySizedBox(
@@ -264,14 +275,14 @@ class InsetsState extends State<Insets> {
     return _InsetModel(
       insets: insets,
       child: Directionality(
-        textDirection: TextDirection.ltr,
+        textDirection: .ltr,
         child: Stack(
           children: <Widget>[
             app,
-            Align(alignment: Alignment.topCenter, child: topNotch),
-            Align(alignment: Alignment.bottomCenter, child: bottomIndicator),
-            Align(alignment: Alignment.centerLeft, child: sideBar),
-            Align(alignment: Alignment.centerRight, child: sideBar),
+            Align(alignment: .topCenter, child: topNotch),
+            Align(alignment: .bottomCenter, child: bottomIndicator),
+            Align(alignment: .centerLeft, child: sideBar),
+            Align(alignment: .centerRight, child: sideBar),
           ],
         ),
       ),

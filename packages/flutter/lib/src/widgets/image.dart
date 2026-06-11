@@ -47,6 +47,8 @@ export 'package:flutter/painting.dart'
 // Examples can assume:
 // late Widget image;
 // late ImageProvider _image;
+// late bool isPaused;
+// late AssetImage myAnimatedGif;
 
 /// Creates an [ImageConfiguration] based on the given [BuildContext] (and
 /// optionally size).
@@ -123,7 +125,7 @@ Future<void> precacheImage(
   ImageErrorListener? onError,
 }) {
   final ImageConfiguration config = createLocalImageConfiguration(context, size: size);
-  final Completer<void> completer = Completer<void>();
+  final completer = Completer<void>();
   final ImageStream stream = provider.resolve(config);
   ImageStreamListener? listener;
   listener = ImageStreamListener(
@@ -282,6 +284,23 @@ typedef ImageErrorWidgetBuilder =
 /// ```
 /// {@end-tool}
 ///
+/// Multiframe images, such as animated GIFs, are paused when [TickerMode] is
+/// disabled just like any other animation. They also paused when animations are
+/// disabled via [MediaQueryData.disableAnimations], such as for accessibility
+/// purposes. If the animation is paused when the image first loads, the first
+/// frame will be displayed and then animation will stop.
+///
+/// {@tool snippet}
+//// An example of pausing a multiframe image using [TickerMode].
+///
+/// ```dart
+/// TickerMode(
+///   enabled: !isPaused,
+///   child: Image(image: myAnimatedGif),
+/// ),
+/// ```
+/// {@end-tool}
+///
 /// ## Memory usage
 ///
 /// The image is stored in memory in uncompressed form (so that it can be
@@ -304,7 +323,7 @@ typedef ImageErrorWidgetBuilder =
 ///
 /// ## Custom image providers
 ///
-/// {@tool dartpad}
+/// {@tool sample}
 /// In this example, a variant of [NetworkImage] is created that passes all the
 /// [ImageConfiguration] information (locale, platform, size, etc) to the server
 /// using query arguments in the image URL.
@@ -326,10 +345,6 @@ class Image extends StatefulWidget {
   ///
   /// To show an image from the network or from an asset bundle, consider using
   /// [Image.network] and [Image.asset] respectively.
-  ///
-  /// The `scale` argument specifies the linear scale factor for drawing this
-  /// image at its intended size and applies to both the width and the height.
-  /// {@macro flutter.painting.imageInfo.scale}
   ///
   /// Either the [width] and [height] arguments should be specified, or the
   /// widget should be placed in a context that sets tight layout constraints.
@@ -869,8 +884,9 @@ class Image extends StatefulWidget {
   /// the exception by providing a replacement widget, or rethrow the exception.
   ///
   /// {@tool dartpad}
-  /// The following sample uses [errorBuilder] to show a '😢' in place of the
-  /// image that fails to load, and prints the error to the console.
+  /// The following sample uses [errorBuilder] to show 'Image
+  /// failed to load' in place of the image that fails to load, and prints
+  /// the error to the console.
   ///
   /// ** See code in examples/api/lib/widgets/image/image.error_builder.0.dart **
   /// {@end-tool}
@@ -1100,6 +1116,11 @@ class _ImageState extends State<Image> with WidgetsBindingObserver {
   StackTrace? _lastStack;
   ImageStreamCompleterHandle? _completerHandle;
 
+  /// True when animations are disabled and the image should not update, such as
+  /// when [TickerMode] is disabled or [MediaQueryData.disableAnimations] is
+  /// true.
+  bool _isPaused = false;
+
   @override
   void initState() {
     super.initState();
@@ -1123,10 +1144,12 @@ class _ImageState extends State<Image> with WidgetsBindingObserver {
     _updateInvertColors();
     _resolveImage();
 
-    if (TickerMode.of(context)) {
-      _listenToStream();
-    } else {
+    _isPaused = !TickerMode.of(context) || (MediaQuery.maybeDisableAnimationsOf(context) ?? false);
+
+    if (_isPaused && _frameNumber != null) {
       _stopListeningToStream(keepStreamAlive: true);
+    } else {
+      _listenToStream();
     }
 
     super.didChangeDependencies();
@@ -1143,6 +1166,7 @@ class _ImageState extends State<Image> with WidgetsBindingObserver {
     }
     if (widget.image != oldWidget.image) {
       _resolveImage();
+      _listenToStream();
     }
   }
 
@@ -1167,7 +1191,7 @@ class _ImageState extends State<Image> with WidgetsBindingObserver {
   }
 
   void _resolveImage() {
-    final ScrollAwareImageProvider provider = ScrollAwareImageProvider<Object>(
+    final provider = ScrollAwareImageProvider<Object>(
       context: _scrollAwareContext,
       imageProvider: widget.image,
     );
@@ -1205,6 +1229,8 @@ class _ImageState extends State<Image> with WidgetsBindingObserver {
                 }());
               }
             : null,
+        // Only suppress error reporting when errorBuilder is provided.
+        reportErrors: widget.errorBuilder == null,
       );
     }
     return _imageStreamListener!;
@@ -1219,6 +1245,9 @@ class _ImageState extends State<Image> with WidgetsBindingObserver {
       _frameNumber = _frameNumber == null ? 0 : _frameNumber! + 1;
       _wasSynchronouslyLoaded = _wasSynchronouslyLoaded | synchronousCall;
     });
+    if (_isPaused) {
+      _stopListeningToStream(keepStreamAlive: true);
+    }
   }
 
   void _handleImageChunk(ImageChunkEvent event) {
@@ -1232,10 +1261,12 @@ class _ImageState extends State<Image> with WidgetsBindingObserver {
 
   void _replaceImage({required ImageInfo? info}) {
     final ImageInfo? oldImageInfo = _imageInfo;
-    SchedulerBinding.instance.addPostFrameCallback(
-      (_) => oldImageInfo?.dispose(),
-      debugLabel: 'Image.disposeOldInfo',
-    );
+    if (oldImageInfo != null) {
+      SchedulerBinding.instance.addPostFrameCallback(
+        (Duration duration) => oldImageInfo.dispose(),
+        debugLabel: 'Image.disposeOldInfo',
+      );
+    }
     _imageInfo = info;
   }
 
@@ -1274,11 +1305,10 @@ class _ImageState extends State<Image> with WidgetsBindingObserver {
       return;
     }
 
+    _isListeningToStream = true;
     _imageStream!.addListener(_getListener());
     _completerHandle?.dispose();
     _completerHandle = null;
-
-    _isListeningToStream = true;
   }
 
   /// Stops listening to the image stream, if this state object has attached a

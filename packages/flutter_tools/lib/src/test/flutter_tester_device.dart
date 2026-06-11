@@ -14,7 +14,7 @@ import '../base/file_system.dart';
 import '../base/io.dart';
 import '../base/logger.dart';
 import '../base/platform.dart';
-import '../convert.dart';
+import '../base/utils.dart';
 import '../device.dart';
 import '../globals.dart' as globals;
 import '../native_assets.dart';
@@ -179,6 +179,9 @@ class FlutterTesterTestDevice extends TestDevice {
           logger.printTrace('test $id: Starting Dart Development Service');
           await _ddsLauncher.startDartDevelopmentServiceFromDebuggingOptions(
             detectedUri,
+            appName:
+                'Kind: Flutter - Device: flutter tester - '
+                'Package: ${flutterProject?.manifest.appName ?? 'unknown'}',
             debuggingOptions: debuggingOptions,
           );
           forwardingUri = _ddsLauncher.uri;
@@ -297,8 +300,7 @@ class FlutterTesterTestDevice extends TestDevice {
   }) {
     for (final stream in <Stream<List<int>>>[process.stderr, process.stdout]) {
       stream
-          .transform<String>(utf8.decoder)
-          .transform<String>(const LineSplitter())
+          .transform(utf8LineDecoder)
           .listen(
             (String line) async {
               logger.printTrace('test $id: Shell: $line');

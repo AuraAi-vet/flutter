@@ -2,31 +2,25 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'semantics_tester.dart';
 
 void main() {
-  group('Sliver Semantics', () {
-    setUp(() {
-      debugResetSemanticsIdCounter();
-    });
-
-    _tests();
+  setUp(() {
+    debugResetSemanticsIdCounter();
   });
-}
 
-void _tests() {
   testWidgets('excludeFromScrollable works correctly', (WidgetTester tester) async {
-    final SemanticsTester semantics = SemanticsTester(tester);
+    final semantics = SemanticsTester(tester);
 
-    const double appBarExpandedHeight = 200.0;
+    const appBarExpandedHeight = 200.0;
 
-    final ScrollController scrollController = ScrollController();
+    final scrollController = ScrollController();
     addTearDown(scrollController.dispose);
-    final List<Widget> listChildren = List<Widget>.generate(30, (int i) {
+    final listChildren = List<Widget>.generate(30, (int i) {
       return SizedBox(height: appBarExpandedHeight, child: Text('Item $i'));
     });
     await tester.pumpWidget(
@@ -34,10 +28,7 @@ void _tests() {
         textDirection: TextDirection.ltr,
         child: Localizations(
           locale: const Locale('en', 'us'),
-          delegates: const <LocalizationsDelegate<dynamic>>[
-            DefaultWidgetsLocalizations.delegate,
-            DefaultMaterialLocalizations.delegate,
-          ],
+          delegates: const <LocalizationsDelegate<dynamic>>[DefaultWidgetsLocalizations.delegate],
           child: Directionality(
             textDirection: TextDirection.ltr,
             child: MediaQuery(
@@ -45,10 +36,12 @@ void _tests() {
               child: CustomScrollView(
                 controller: scrollController,
                 slivers: <Widget>[
-                  const SliverAppBar(
+                  SliverPersistentHeader(
                     pinned: true,
-                    expandedHeight: appBarExpandedHeight,
-                    title: Text('Semantics Test with Slivers'),
+                    delegate: _TestSliverHeaderDelegate(
+                      label: 'Semantics Test with Slivers',
+                      maxExtent: appBarExpandedHeight,
+                    ),
                   ),
                   SliverList.list(children: listChildren),
                 ],
@@ -251,15 +244,13 @@ void _tests() {
   });
 
   testWidgets('Offscreen sliver are hidden in semantics tree', (WidgetTester tester) async {
-    final SemanticsTester semantics = SemanticsTester(tester);
+    final semantics = SemanticsTester(tester);
 
-    const double containerHeight = 200.0;
+    const containerHeight = 200.0;
 
-    final ScrollController scrollController = ScrollController(
-      initialScrollOffset: containerHeight * 1.5,
-    );
+    final scrollController = ScrollController(initialScrollOffset: containerHeight * 1.5);
     addTearDown(scrollController.dispose);
-    final List<Widget> slivers = List<Widget>.generate(30, (int i) {
+    final slivers = List<Widget>.generate(30, (int i) {
       return SliverToBoxAdapter(
         child: SizedBox(
           height: containerHeight,
@@ -272,10 +263,7 @@ void _tests() {
         textDirection: TextDirection.ltr,
         child: Localizations(
           locale: const Locale('en', 'us'),
-          delegates: const <LocalizationsDelegate<dynamic>>[
-            DefaultWidgetsLocalizations.delegate,
-            DefaultMaterialLocalizations.delegate,
-          ],
+          delegates: const <LocalizationsDelegate<dynamic>>[DefaultWidgetsLocalizations.delegate],
           child: Directionality(
             textDirection: TextDirection.ltr,
             child: Center(
@@ -341,9 +329,9 @@ void _tests() {
   });
 
   testWidgets('SemanticsNodes of Slivers are in paint order', (WidgetTester tester) async {
-    final SemanticsTester semantics = SemanticsTester(tester);
+    final semantics = SemanticsTester(tester);
 
-    final List<Widget> slivers = List<Widget>.generate(5, (int i) {
+    final slivers = List<Widget>.generate(5, (int i) {
       return SliverToBoxAdapter(child: SizedBox(height: 20.0, child: Text('Item $i')));
     });
     await tester.pumpWidget(
@@ -351,10 +339,7 @@ void _tests() {
         textDirection: TextDirection.ltr,
         child: Localizations(
           locale: const Locale('en', 'us'),
-          delegates: const <LocalizationsDelegate<dynamic>>[
-            DefaultWidgetsLocalizations.delegate,
-            DefaultMaterialLocalizations.delegate,
-          ],
+          delegates: const <LocalizationsDelegate<dynamic>>[DefaultWidgetsLocalizations.delegate],
           child: Directionality(
             textDirection: TextDirection.ltr,
             child: CustomScrollView(slivers: slivers),
@@ -406,29 +391,29 @@ void _tests() {
   testWidgets(
     'SemanticsNodes of a sliver fully covered by another overlapping sliver are excluded',
     (WidgetTester tester) async {
-      final SemanticsTester semantics = SemanticsTester(tester);
+      final semantics = SemanticsTester(tester);
 
-      final List<Widget> listChildren = List<Widget>.generate(10, (int i) {
+      final listChildren = List<Widget>.generate(10, (int i) {
         return SizedBox(height: 200.0, child: Text('Item $i', textDirection: TextDirection.ltr));
       });
-      final ScrollController controller = ScrollController(initialScrollOffset: 280.0);
+      final controller = ScrollController(initialScrollOffset: 280.0);
       addTearDown(controller.dispose);
       await tester.pumpWidget(
         Semantics(
           textDirection: TextDirection.ltr,
           child: Localizations(
             locale: const Locale('en', 'us'),
-            delegates: const <LocalizationsDelegate<dynamic>>[
-              DefaultWidgetsLocalizations.delegate,
-              DefaultMaterialLocalizations.delegate,
-            ],
+            delegates: const <LocalizationsDelegate<dynamic>>[DefaultWidgetsLocalizations.delegate],
             child: Directionality(
               textDirection: TextDirection.ltr,
               child: MediaQuery(
                 data: const MediaQueryData(),
                 child: CustomScrollView(
                   slivers: <Widget>[
-                    const SliverAppBar(pinned: true, expandedHeight: 100.0, title: Text('AppBar')),
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: _TestSliverHeaderDelegate(label: 'AppBar'),
+                    ),
                     SliverList.list(children: listChildren),
                   ],
                   controller: controller,
@@ -513,11 +498,11 @@ void _tests() {
   testWidgets('Slivers fully covered by another overlapping sliver are hidden', (
     WidgetTester tester,
   ) async {
-    final SemanticsTester semantics = SemanticsTester(tester);
+    final semantics = SemanticsTester(tester);
 
-    final ScrollController controller = ScrollController(initialScrollOffset: 280.0);
+    final controller = ScrollController(initialScrollOffset: 280.0);
     addTearDown(controller.dispose);
-    final List<Widget> slivers = List<Widget>.generate(10, (int i) {
+    final slivers = List<Widget>.generate(10, (int i) {
       return SliverToBoxAdapter(
         child: SizedBox(height: 200.0, child: Text('Item $i', textDirection: TextDirection.ltr)),
       );
@@ -527,10 +512,7 @@ void _tests() {
         textDirection: TextDirection.ltr,
         child: Localizations(
           locale: const Locale('en', 'us'),
-          delegates: const <LocalizationsDelegate<dynamic>>[
-            DefaultWidgetsLocalizations.delegate,
-            DefaultMaterialLocalizations.delegate,
-          ],
+          delegates: const <LocalizationsDelegate<dynamic>>[DefaultWidgetsLocalizations.delegate],
           child: Directionality(
             textDirection: TextDirection.ltr,
             child: MediaQuery(
@@ -538,7 +520,10 @@ void _tests() {
               child: CustomScrollView(
                 controller: controller,
                 slivers: <Widget>[
-                  const SliverAppBar(pinned: true, expandedHeight: 100.0, title: Text('AppBar')),
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: _TestSliverHeaderDelegate(label: 'AppBar'),
+                  ),
                   ...slivers,
                 ],
               ),
@@ -621,22 +606,19 @@ void _tests() {
   testWidgets(
     'SemanticsNodes of a sliver fully covered by another overlapping sliver are excluded (reverse)',
     (WidgetTester tester) async {
-      final SemanticsTester semantics = SemanticsTester(tester);
+      final semantics = SemanticsTester(tester);
 
-      final List<Widget> listChildren = List<Widget>.generate(10, (int i) {
+      final listChildren = List<Widget>.generate(10, (int i) {
         return SizedBox(height: 200.0, child: Text('Item $i', textDirection: TextDirection.ltr));
       });
-      final ScrollController controller = ScrollController(initialScrollOffset: 280.0);
+      final controller = ScrollController(initialScrollOffset: 280.0);
       addTearDown(controller.dispose);
       await tester.pumpWidget(
         Semantics(
           textDirection: TextDirection.ltr,
           child: Localizations(
             locale: const Locale('en', 'us'),
-            delegates: const <LocalizationsDelegate<dynamic>>[
-              DefaultWidgetsLocalizations.delegate,
-              DefaultMaterialLocalizations.delegate,
-            ],
+            delegates: const <LocalizationsDelegate<dynamic>>[DefaultWidgetsLocalizations.delegate],
             child: Directionality(
               textDirection: TextDirection.ltr,
               child: MediaQuery(
@@ -644,7 +626,10 @@ void _tests() {
                 child: CustomScrollView(
                   reverse: true, // This is the important setting for this test.
                   slivers: <Widget>[
-                    const SliverAppBar(pinned: true, expandedHeight: 100.0, title: Text('AppBar')),
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: _TestSliverHeaderDelegate(label: 'AppBar'),
+                    ),
                     SliverList.list(children: listChildren),
                   ],
                   controller: controller,
@@ -729,11 +714,11 @@ void _tests() {
   testWidgets('Slivers fully covered by another overlapping sliver are hidden (reverse)', (
     WidgetTester tester,
   ) async {
-    final SemanticsTester semantics = SemanticsTester(tester);
+    final semantics = SemanticsTester(tester);
 
-    final ScrollController controller = ScrollController(initialScrollOffset: 280.0);
+    final controller = ScrollController(initialScrollOffset: 280.0);
     addTearDown(controller.dispose);
-    final List<Widget> slivers = List<Widget>.generate(10, (int i) {
+    final slivers = List<Widget>.generate(10, (int i) {
       return SliverToBoxAdapter(
         child: SizedBox(height: 200.0, child: Text('Item $i', textDirection: TextDirection.ltr)),
       );
@@ -743,10 +728,7 @@ void _tests() {
         textDirection: TextDirection.ltr,
         child: Localizations(
           locale: const Locale('en', 'us'),
-          delegates: const <LocalizationsDelegate<dynamic>>[
-            DefaultWidgetsLocalizations.delegate,
-            DefaultMaterialLocalizations.delegate,
-          ],
+          delegates: const <LocalizationsDelegate<dynamic>>[DefaultWidgetsLocalizations.delegate],
           child: Directionality(
             textDirection: TextDirection.ltr,
             child: MediaQuery(
@@ -755,7 +737,10 @@ void _tests() {
                 reverse: true, // This is the important setting for this test.
                 controller: controller,
                 slivers: <Widget>[
-                  const SliverAppBar(pinned: true, expandedHeight: 100.0, title: Text('AppBar')),
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: _TestSliverHeaderDelegate(label: 'AppBar'),
+                  ),
                   ...slivers,
                 ],
               ),
@@ -838,18 +823,18 @@ void _tests() {
   testWidgets(
     'Slivers fully covered by another overlapping sliver are hidden (with center sliver)',
     (WidgetTester tester) async {
-      final SemanticsTester semantics = SemanticsTester(tester);
+      final semantics = SemanticsTester(tester);
 
-      final ScrollController controller = ScrollController(initialScrollOffset: 280.0);
+      final controller = ScrollController(initialScrollOffset: 280.0);
       addTearDown(controller.dispose);
       final GlobalKey forwardAppBarKey = GlobalKey(debugLabel: 'forward app bar');
-      final List<Widget> forwardChildren = List<Widget>.generate(10, (int i) {
+      final forwardChildren = List<Widget>.generate(10, (int i) {
         return SizedBox(
           height: 200.0,
           child: Text('Forward Item $i', textDirection: TextDirection.ltr),
         );
       });
-      final List<Widget> backwardChildren = List<Widget>.generate(10, (int i) {
+      final backwardChildren = List<Widget>.generate(10, (int i) {
         return SizedBox(
           height: 200.0,
           child: Text('Backward Item $i', textDirection: TextDirection.ltr),
@@ -864,7 +849,6 @@ void _tests() {
               locale: const Locale('en', 'us'),
               delegates: const <LocalizationsDelegate<dynamic>>[
                 DefaultWidgetsLocalizations.delegate,
-                DefaultMaterialLocalizations.delegate,
               ],
               child: MediaQuery(
                 data: const MediaQueryData(),
@@ -876,20 +860,14 @@ void _tests() {
                       center: forwardAppBarKey,
                       slivers: <Widget>[
                         SliverList.list(children: backwardChildren),
-                        const SliverAppBar(
+                        SliverPersistentHeader(
                           pinned: true,
-                          expandedHeight: 100.0,
-                          flexibleSpace: FlexibleSpaceBar(
-                            title: Text('Backward app bar', textDirection: TextDirection.ltr),
-                          ),
+                          delegate: _TestSliverHeaderDelegate(label: 'Backward app bar'),
                         ),
-                        SliverAppBar(
-                          pinned: true,
+                        SliverPersistentHeader(
                           key: forwardAppBarKey,
-                          expandedHeight: 100.0,
-                          flexibleSpace: const FlexibleSpaceBar(
-                            title: Text('Forward app bar', textDirection: TextDirection.ltr),
-                          ),
+                          pinned: true,
+                          delegate: _TestSliverHeaderDelegate(label: 'Forward app bar'),
                         ),
                         SliverList.list(children: forwardChildren),
                       ],
@@ -918,18 +896,13 @@ void _tests() {
                           TestSemantics(
                             tags: <SemanticsTag>[RenderViewport.excludeFromScrolling],
                             children: <TestSemantics>[
-                              TestSemantics(),
                               TestSemantics(
-                                children: <TestSemantics>[
-                                  TestSemantics(
-                                    flags: <SemanticsFlag>[
-                                      SemanticsFlag.namesRoute,
-                                      SemanticsFlag.isHeader,
-                                    ],
-                                    label: 'Forward app bar',
-                                    textDirection: TextDirection.ltr,
-                                  ),
+                                flags: <SemanticsFlag>[
+                                  SemanticsFlag.namesRoute,
+                                  SemanticsFlag.isHeader,
                                 ],
+                                label: 'Forward app bar',
+                                textDirection: TextDirection.ltr,
                               ),
                             ],
                           ),
@@ -1040,18 +1013,13 @@ void _tests() {
                           TestSemantics(
                             tags: <SemanticsTag>[RenderViewport.excludeFromScrolling],
                             children: <TestSemantics>[
-                              TestSemantics(),
                               TestSemantics(
-                                children: <TestSemantics>[
-                                  TestSemantics(
-                                    flags: <SemanticsFlag>[
-                                      SemanticsFlag.namesRoute,
-                                      SemanticsFlag.isHeader,
-                                    ],
-                                    label: 'Backward app bar',
-                                    textDirection: TextDirection.ltr,
-                                  ),
+                                flags: <SemanticsFlag>[
+                                  SemanticsFlag.namesRoute,
+                                  SemanticsFlag.isHeader,
                                 ],
+                                label: 'Backward app bar',
+                                textDirection: TextDirection.ltr,
                               ),
                             ],
                           ),
@@ -1072,4 +1040,40 @@ void _tests() {
       semantics.dispose();
     },
   );
+}
+
+/// Minimal [SliverPersistentHeaderDelegate] used as a non-Material replacement
+/// for `SliverAppBar` in these tests. Produces the same `namesRoute + isHeader`
+/// semantics that a Material app bar title emits on Android.
+class _TestSliverHeaderDelegate extends SliverPersistentHeaderDelegate {
+  _TestSliverHeaderDelegate({required this.label, this.maxExtent = 100.0});
+
+  final String label;
+
+  @override
+  final double maxExtent;
+
+  @override
+  double get minExtent => 56.0;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return SizedBox.expand(
+      child: Align(
+        child: Semantics(
+          container: true,
+          explicitChildNodes: true,
+          child: Semantics(
+            namesRoute: true,
+            header: true,
+            child: Text(label, textDirection: TextDirection.ltr),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(_TestSliverHeaderDelegate oldDelegate) =>
+      oldDelegate.label != label || oldDelegate.maxExtent != maxExtent;
 }

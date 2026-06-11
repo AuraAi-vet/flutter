@@ -11,6 +11,7 @@ import 'package:unified_analytics/unified_analytics.dart';
 import 'package:vm_service/vm_service.dart' as vm_service;
 
 import 'base/context.dart';
+import 'base/dds.dart';
 import 'base/file_system.dart';
 import 'base/logger.dart';
 import 'base/platform.dart';
@@ -22,7 +23,6 @@ import 'devfs.dart';
 import 'device.dart';
 import 'globals.dart' as globals;
 import 'project.dart';
-import 'reporting/reporting.dart';
 import 'resident_runner.dart';
 import 'vmservice.dart';
 
@@ -38,10 +38,10 @@ HotRunnerConfig? get hotRunnerConfig => context.get<HotRunnerConfig>();
 
 class HotRunnerConfig {
   /// Should the hot runner assume that the minimal Dart dependencies do not change?
-  var stableDartDependencies = false;
+  bool stableDartDependencies = false;
 
   /// Whether the hot runner should scan for modified files asynchronously.
-  var asyncScanning = false;
+  bool asyncScanning = false;
 
   /// A hook for implementations to perform any necessary initialization prior
   /// to a hot restart. Should return true if the hot restart should continue.
@@ -127,12 +127,11 @@ class HotRunner extends ResidentRunner {
 
   final benchmarkData = <String, List<int>>{};
 
+  @visibleForTesting
+  String? get targetPlatformName => _targetPlatformName;
   String? _targetPlatformName;
-  TargetPlatform get _targetPlatform => _targetPlatformName != null
-      ? getTargetPlatformForName(_targetPlatformName!)
-      : throw ArgumentError(
-          'Access to the target platform needs a call to _calculateTargetPlatform first',
-        );
+  final _targetPlatforms = <TargetPlatform>{};
+
   String? _sdkName;
   bool? _emulator;
 
@@ -145,19 +144,29 @@ class HotRunner extends ResidentRunner {
   @override
   bool get supportsDetach => stopAppDuringCleanup;
 
+  @override
+  bool get reloadIsRestart => false;
+
   Future<void> _calculateTargetPlatform() async {
     if (_targetPlatformName != null) {
       return;
     }
-
+    assert(_targetPlatforms.isEmpty);
     switch (flutterDevices.length) {
       case 1:
         final Device device = flutterDevices.first.device!;
-        _targetPlatformName = getNameForTargetPlatform(await device.targetPlatform);
+        final TargetPlatform targetPlatform = await device.targetPlatform;
+        _targetPlatformName = targetPlatform.getName();
+        _targetPlatforms.add(targetPlatform);
         _sdkName = await device.sdkNameAndVersion;
         _emulator = await device.isLocalEmulator;
       case > 1:
         _targetPlatformName = 'multiple';
+        _targetPlatforms.addAll(
+          await Future.wait([
+            for (final flutterDevice in flutterDevices) flutterDevice.device!.targetPlatform,
+          ]),
+        );
         _sdkName = 'multiple';
         _emulator = false;
       default:
@@ -278,12 +287,16 @@ class HotRunner extends ResidentRunner {
     try {
       final List<Uri?> baseUris = await _initDevFS();
       if (connectionInfoCompleter != null) {
+        final FlutterVmService vmService = flutterDevices.first.vmService!;
+        final DartDevelopmentService dds = flutterDevices.first.device!.dds;
         // Only handle one debugger connection.
         connectionInfoCompleter.complete(
           DebugConnectionInfo(
-            httpUri: flutterDevices.first.vmService!.httpAddress,
-            wsUri: flutterDevices.first.vmService!.wsAddress,
+            httpUri: vmService.httpAddress,
+            wsUri: vmService.wsAddress,
             baseUri: baseUris.first.toString(),
+            devToolsUri: dds.devToolsUri,
+            dtdUri: dds.dtdUri,
           ),
         );
       }
@@ -297,7 +310,7 @@ class HotRunner extends ResidentRunner {
     final initialUpdateDevFSsTimer = Stopwatch()..start();
     final UpdateFSReport devfsResult = await _updateDevFS(
       fullRestart: needsFullRestart,
-      targetPlatform: _targetPlatform,
+      targetPlatforms: _targetPlatforms,
     );
 
     _addBenchmarkData(
@@ -424,17 +437,6 @@ class HotRunner extends ResidentRunner {
 
     unawaited(
       appStartedCompleter?.future.then((_) {
-        HotEvent(
-          'reload-ready',
-          targetPlatform: _targetPlatformName!,
-          sdkName: _sdkName!,
-          emulator: _emulator!,
-          fullRestart: false,
-          overallTimeInMs: appStartedTimer.elapsed.inMilliseconds,
-          compileTimeInMs: totalCompileTime.inMilliseconds,
-          transferTimeInMs: totalLaunchAppTime.inMilliseconds,
-        ).send();
-
         _analytics.send(
           Event.hotRunnerInfo(
             label: 'reload-ready',
@@ -480,23 +482,26 @@ class HotRunner extends ResidentRunner {
 
   Future<UpdateFSReport> _updateDevFS({
     bool fullRestart = false,
-    required TargetPlatform targetPlatform,
+    required Set<TargetPlatform> targetPlatforms,
   }) async {
     final bool isFirstUpload = !assetBundle.wasBuiltOnce();
     final bool rebuildBundle = assetBundle.needsBuild();
     if (rebuildBundle) {
-      globals.printTrace('Updating assets');
-      final int result = await assetBundle.build(
-        flutterHookResult: await dartBuilder?.runHooks(
+      for (final targetPlatform in targetPlatforms) {
+        globals.printTrace('Updating assets for ${targetPlatform.osName}');
+        final int result = await assetBundle.build(
+          flutterHookResult: await dartBuilder?.runHooks(
+            targetPlatform: targetPlatform,
+            environment: environment,
+            logger: _logger,
+          ),
+          packageConfigPath: debuggingOptions.buildInfo.packageConfigPath,
+          flavor: debuggingOptions.buildInfo.flavor,
           targetPlatform: targetPlatform,
-          environment: environment,
-          logger: _logger,
-        ),
-        packageConfigPath: debuggingOptions.buildInfo.packageConfigPath,
-        flavor: debuggingOptions.buildInfo.flavor,
-      );
-      if (result != 0) {
-        return UpdateFSReport();
+        );
+        if (result != 0) {
+          return UpdateFSReport();
+        }
       }
     }
 
@@ -606,7 +611,7 @@ class HotRunner extends ResidentRunner {
     final restartTimer = Stopwatch()..start();
     UpdateFSReport updatedDevFS;
     try {
-      updatedDevFS = await _updateDevFS(fullRestart: true, targetPlatform: _targetPlatform);
+      updatedDevFS = await _updateDevFS(fullRestart: true, targetPlatforms: _targetPlatforms);
     } finally {
       hotRunnerConfig!.updateDevFSComplete();
     }
@@ -848,27 +853,12 @@ class HotRunner extends ResidentRunner {
       if (!result.isOk) {
         restartEvent = 'restart-failed';
       } else {
-        HotEvent(
-          'restart',
-          targetPlatform: targetPlatform!,
-          sdkName: sdkName!,
-          emulator: emulator!,
-          fullRestart: true,
-          reason: reason,
-          overallTimeInMs: restartTimer.elapsed.inMilliseconds,
-          syncedBytes: result.updateFSReport?.syncedBytes,
-          invalidatedSourcesCount: result.updateFSReport?.invalidatedSourcesCount,
-          transferTimeInMs: result.updateFSReport?.transferDuration.inMilliseconds,
-          compileTimeInMs: result.updateFSReport?.compileDuration.inMilliseconds,
-          findInvalidatedTimeInMs: result.updateFSReport?.findInvalidatedDuration.inMilliseconds,
-          scannedSourcesCount: result.updateFSReport?.scannedSourcesCount,
-        ).send();
         _analytics.send(
           Event.hotRunnerInfo(
             label: 'restart',
-            targetPlatform: targetPlatform,
-            sdkName: sdkName,
-            emulator: emulator,
+            targetPlatform: targetPlatform!,
+            sdkName: sdkName!,
+            emulator: emulator!,
             fullRestart: true,
             reason: reason,
             overallTimeInMs: restartTimer.elapsed.inMilliseconds,
@@ -891,20 +881,12 @@ class HotRunner extends ResidentRunner {
       // The `restartEvent` variable will be null if restart succeeded. We will
       // only handle the case when it failed here.
       if (restartEvent != null) {
-        HotEvent(
-          restartEvent,
-          targetPlatform: targetPlatform!,
-          sdkName: sdkName!,
-          emulator: emulator!,
-          fullRestart: true,
-          reason: reason,
-        ).send();
         _analytics.send(
           Event.hotRunnerInfo(
             label: restartEvent,
-            targetPlatform: targetPlatform,
-            sdkName: sdkName,
-            emulator: emulator,
+            targetPlatform: targetPlatform!,
+            sdkName: sdkName!,
+            emulator: emulator!,
             fullRestart: true,
             reason: reason,
           ),
@@ -949,39 +931,23 @@ class HotRunner extends ResidentRunner {
             'the source code. Please address the error and then use "R" to '
             'restart the app.\n'
             '${error.message} (error code: ${error.code})';
-        HotEvent(
-          'reload-barred',
-          targetPlatform: targetPlatform!,
-          sdkName: sdkName!,
-          emulator: emulator!,
-          fullRestart: false,
-          reason: reason,
-        ).send();
         _analytics.send(
           Event.hotRunnerInfo(
             label: 'reload-barred',
-            targetPlatform: targetPlatform,
-            sdkName: sdkName,
-            emulator: emulator,
+            targetPlatform: targetPlatform!,
+            sdkName: sdkName!,
+            emulator: emulator!,
             fullRestart: false,
             reason: reason,
           ),
         );
       } else {
-        HotEvent(
-          'exception',
-          targetPlatform: targetPlatform!,
-          sdkName: sdkName!,
-          emulator: emulator!,
-          fullRestart: false,
-          reason: reason,
-        ).send();
         _analytics.send(
           Event.hotRunnerInfo(
             label: 'exception',
-            targetPlatform: targetPlatform,
-            sdkName: sdkName,
-            emulator: emulator,
+            targetPlatform: targetPlatform!,
+            sdkName: sdkName!,
+            emulator: emulator!,
             fullRestart: false,
             reason: reason,
           ),
@@ -1021,7 +987,7 @@ class HotRunner extends ResidentRunner {
     final devFSTimer = Stopwatch()..start();
     UpdateFSReport updatedDevFS;
     try {
-      updatedDevFS = await _updateDevFS(targetPlatform: _targetPlatform);
+      updatedDevFS = await _updateDevFS(targetPlatforms: _targetPlatforms);
     } finally {
       hotRunnerConfig!.updateDevFSComplete();
     }
@@ -1094,33 +1060,12 @@ class HotRunner extends ResidentRunner {
     // many libraries were affected by the hot reload request.
     // Relation of [invalidatedSourcesCount] to [syncedLibraryCount] should help
     // understand sync/transfer "overhead" of updating this number of source files.
-    HotEvent(
-      'reload',
-      targetPlatform: targetPlatform!,
-      sdkName: sdkName!,
-      emulator: emulator!,
-      fullRestart: false,
-      reason: reason,
-      overallTimeInMs: reloadInMs,
-      finalLibraryCount: firstReloadDetails['finalLibraryCount'] as int? ?? 0,
-      syncedLibraryCount: firstReloadDetails['receivedLibraryCount'] as int? ?? 0,
-      syncedClassesCount: firstReloadDetails['receivedClassesCount'] as int? ?? 0,
-      syncedProceduresCount: firstReloadDetails['receivedProceduresCount'] as int? ?? 0,
-      syncedBytes: updatedDevFS.syncedBytes,
-      invalidatedSourcesCount: updatedDevFS.invalidatedSourcesCount,
-      transferTimeInMs: updatedDevFS.transferDuration.inMilliseconds,
-      compileTimeInMs: updatedDevFS.compileDuration.inMilliseconds,
-      findInvalidatedTimeInMs: updatedDevFS.findInvalidatedDuration.inMilliseconds,
-      scannedSourcesCount: updatedDevFS.scannedSourcesCount,
-      reassembleTimeInMs: reassembleTimer.elapsed.inMilliseconds,
-      reloadVMTimeInMs: reloadVMTimer.elapsed.inMilliseconds,
-    ).send();
     _analytics.send(
       Event.hotRunnerInfo(
         label: 'reload',
-        targetPlatform: targetPlatform,
-        sdkName: sdkName,
-        emulator: emulator,
+        targetPlatform: targetPlatform!,
+        sdkName: sdkName!,
+        emulator: emulator!,
         fullRestart: false,
         reason: reason,
         overallTimeInMs: reloadInMs,
@@ -1585,6 +1530,8 @@ class ProjectFileInvalidator {
             // uri.toFilePath() does not work with MultiRootFileSystem.
             () =>
                 (uri.hasScheme && uri.scheme != 'file'
+                        // TODO(srawlins): Switch from using `stat` to using `statSync`.
+                        // ignore: avoid_slow_async_io
                         ? _fileSystem.file(uri).stat()
                         : _fileSystem.stat(uri.toFilePath(windows: _platform.isWindows)))
                     .then((FileStat stat) {

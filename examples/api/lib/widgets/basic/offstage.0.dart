@@ -34,14 +34,15 @@ class _OffstageExampleState extends State<OffstageExample> {
   bool _offstage = true;
 
   Size _getFlutterLogoSize() {
-    final RenderBox renderLogo = _key.currentContext!.findRenderObject()! as RenderBox;
+    final RenderBox renderLogo =
+        _key.currentContext!.findRenderObject()! as RenderBox;
     return renderLogo.size;
   }
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisAlignment: .center,
       children: <Widget>[
         Offstage(
           offstage: _offstage,
@@ -61,7 +62,11 @@ class _OffstageExampleState extends State<OffstageExample> {
             child: const Text('Get Flutter Logo size'),
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Flutter Logo size is ${_getFlutterLogoSize()}')),
+                SnackBar(
+                  content: Text(
+                    'Flutter Logo size is ${_getFlutterLogoSize()}',
+                  ),
+                ),
               );
             },
           ),

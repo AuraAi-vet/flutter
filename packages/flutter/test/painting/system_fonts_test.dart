@@ -17,14 +17,14 @@ Future<void> verifyMarkedNeedsLayoutDuringTransientCallbacksPhase(
 ) async {
   assert(!renderObject.debugNeedsLayout);
 
-  const Map<String, dynamic> data = <String, dynamic>{'type': 'fontsChange'};
+  const data = <String, dynamic>{'type': 'fontsChange'};
   await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
     'flutter/system',
     SystemChannels.system.codec.encodeMessage(data),
     (ByteData? data) {},
   );
 
-  final Completer<bool> animation = Completer<bool>();
+  final animation = Completer<bool>();
   tester.binding.scheduleFrameCallback((Duration timeStamp) {
     animation.complete(renderObject.debugNeedsLayout);
   });
@@ -46,15 +46,14 @@ void main() {
   testWidgets(
     'Safe to query a RelayoutWhenSystemFontsChangeMixin for text layout after system fonts changes',
     (WidgetTester tester) async {
-      final _RenderCustomRelayoutWhenSystemFontsChange child =
-          _RenderCustomRelayoutWhenSystemFontsChange();
+      final child = _RenderCustomRelayoutWhenSystemFontsChange();
       await tester.pumpWidget(
         Directionality(
           textDirection: TextDirection.ltr,
           child: WidgetToRenderBoxAdapter(renderBox: child),
         ),
       );
-      const Map<String, dynamic> data = <String, dynamic>{'type': 'fontsChange'};
+      const data = <String, dynamic>{'type': 'fontsChange'};
       await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
         'flutter/system',
         SystemChannels.system.codec.encodeMessage(data),
@@ -80,7 +79,7 @@ void main() {
         layoutDirection: TextDirection.ltr,
       ),
     );
-    const Map<String, dynamic> data = <String, dynamic>{'type': 'fontsChange'};
+    const data = <String, dynamic>{'type': 'fontsChange'};
     await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
       'flutter/system',
       SystemChannels.system.codec.encodeMessage(data),
@@ -98,9 +97,9 @@ void main() {
       );
       final dynamic state = tester.state(find.byType(CupertinoDatePicker));
       // ignore: avoid_dynamic_calls
-      final Map<int, double> cache = state.estimatedColumnWidths as Map<int, double>;
+      final cache = state.estimatedColumnWidths as Map<int, double>;
       expect(cache.isNotEmpty, isTrue);
-      const Map<String, dynamic> data = <String, dynamic>{'type': 'fontsChange'};
+      const data = <String, dynamic>{'type': 'fontsChange'};
       await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
         'flutter/system',
         SystemChannels.system.codec.encodeMessage(data),
@@ -128,10 +127,10 @@ void main() {
       );
       final dynamic state = tester.state(find.byType(CupertinoDatePicker));
       // ignore: avoid_dynamic_calls
-      final Map<int, double> cache = state.estimatedColumnWidths as Map<int, double>;
+      final cache = state.estimatedColumnWidths as Map<int, double>;
       // Simulates font missing.
       cache.clear();
-      const Map<String, dynamic> data = <String, dynamic>{'type': 'fontsChange'};
+      const data = <String, dynamic>{'type': 'fontsChange'};
       await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
         'flutter/system',
         SystemChannels.system.codec.encodeMessage(data),
@@ -160,7 +159,7 @@ void main() {
       state.numberLabelHeight = 0.0;
       // ignore: avoid_dynamic_calls
       state.numberLabelBaseline = 0.0;
-      const Map<String, dynamic> data = <String, dynamic>{'type': 'fontsChange'};
+      const data = <String, dynamic>{'type': 'fontsChange'};
       await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
         'flutter/system',
         SystemChannels.system.codec.encodeMessage(data),
@@ -193,7 +192,7 @@ void main() {
         ),
       ),
     );
-    const Map<String, dynamic> data = <String, dynamic>{'type': 'fontsChange'};
+    const data = <String, dynamic>{'type': 'fontsChange'};
     await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
       'flutter/system',
       SystemChannels.system.codec.encodeMessage(data),
@@ -219,6 +218,37 @@ void main() {
         )
         .first;
     await verifyMarkedNeedsLayoutDuringTransientCallbacksPhase(tester, renderObject);
+  });
+
+  // Regression test for https://github.com/flutter/flutter/issues/151873
+  testWidgets('System fonts update during non-idle scheduler phase does not assert', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: Text('Hello')));
+
+    // Simulate a fontsChange system message arriving during a non-idle
+    // scheduler phase (e.g. midFrameMicrotasks on web when fonts load
+    // asynchronously). Previously this caused an assertion failure in
+    // _scheduleSystemFontsUpdate because it assumed the scheduler was idle.
+    tester.binding.scheduleFrameCallback((Duration timeStamp) {
+      // We're now inside transientCallbacks phase (not idle).
+      // Trigger a fonts change notification from here.
+      const data = <String, dynamic>{'type': 'fontsChange'};
+      tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+        'flutter/system',
+        SystemChannels.system.codec.encodeMessage(data),
+        (ByteData? data) {},
+      );
+    });
+
+    // Pump to execute the frame callback. This should not throw.
+    await tester.pump();
+
+    // Pump again to let the scheduled frame callback run.
+    await tester.pump();
+
+    // Verify the text widget still renders correctly after the fonts update.
+    expect(find.text('Hello'), findsOneWidget);
   });
 
   testWidgets('TimePicker relayout upon system fonts changes', (WidgetTester tester) async {
@@ -252,7 +282,7 @@ void main() {
     );
     await tester.tap(find.text('X'));
     await tester.pumpAndSettle();
-    const Map<String, dynamic> data = <String, dynamic>{'type': 'fontsChange'};
+    const data = <String, dynamic>{'type': 'fontsChange'};
     await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
       'flutter/system',
       SystemChannels.system.codec.encodeMessage(data),

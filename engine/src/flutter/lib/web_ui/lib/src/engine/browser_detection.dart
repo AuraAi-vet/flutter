@@ -6,6 +6,7 @@ import 'package:meta/meta.dart';
 import 'package:ui/ui_web/src/ui_web.dart' as ui_web;
 
 import 'dom.dart';
+import 'safe_browser_api.dart';
 
 /// A flag to check if the current browser is running on a laptop/desktop device.
 bool get isDesktop => ui_web.browser.isDesktop;
@@ -62,7 +63,7 @@ bool get isChrome110OrOlder {
   if (_cachedIsChrome110OrOlder != null) {
     return _cachedIsChrome110OrOlder!;
   }
-  final RegExp chromeRegexp = RegExp(r'Chrom(e|ium)\/([0-9]+)\.');
+  final chromeRegexp = RegExp(r'Chrom(e|ium)\/([0-9]+)\.');
   final RegExpMatch? match = chromeRegexp.firstMatch(ui_web.browser.userAgent);
   if (match != null) {
     final int chromeVersion = int.parse(match.group(2)!);
@@ -137,7 +138,7 @@ bool get _workAroundBug91333 => _isIOS;
 
 /// Whether the current browser supports the Chromium variant of CanvasKit.
 bool get browserSupportsCanvaskitChromium =>
-    domIntl.v8BreakIterator != null && domIntl.Segmenter != null;
+    domIntl.v8BreakIterator != null && domIntl.Segmenter != null && browserSupportsImageDecoder;
 
 /// Whether the current browser is Safari 17.4 or newer.
 ///
@@ -146,7 +147,7 @@ bool get isSafari174OrNewer {
   if (!isSafari) {
     return false;
   }
-  final RegExp safariRegexp = RegExp(r'Version\/([0-9]+)\.([0-9]+)');
+  final safariRegexp = RegExp(r'Version\/([0-9]+)\.([0-9]+)');
   final RegExpMatch? match = safariRegexp.firstMatch(ui_web.browser.userAgent);
   if (match != null) {
     final int majorVersion = int.parse(match.group(1)!);
@@ -163,7 +164,7 @@ bool get isFirefox119OrNewer {
   if (!isFirefox) {
     return false;
   }
-  final RegExp firefoxRegexp = RegExp(r'Firefox\/([0-9]+)');
+  final firefoxRegexp = RegExp(r'Firefox\/([0-9]+)');
   final RegExpMatch? match = firefoxRegexp.firstMatch(ui_web.browser.userAgent);
   if (match != null) {
     final int version = int.parse(match.group(1)!);

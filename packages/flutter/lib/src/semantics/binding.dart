@@ -7,7 +7,9 @@
 /// @docImport 'semantics.dart';
 library;
 
-import 'dart:ui' as ui show AccessibilityFeatures, SemanticsActionEvent, SemanticsUpdateBuilder;
+import 'dart:ui'
+    as ui
+    show AccessibilityFeatures, Rect, SemanticsActionEvent, SemanticsUpdateBuilder;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
@@ -108,6 +110,20 @@ mixin SemanticsBinding on BindingBase {
     _semanticsActionListeners.remove(listener);
   }
 
+  /// Returns the global rect for the semantics node with the given [nodeId] in
+  /// the view with the given [viewId].
+  ///
+  /// The rect is in the global coordinate space of the view's render tree, in
+  /// logical pixels. This is useful for widgets that react to semantics actions
+  /// and need the on-screen position of the semantics node that received the
+  /// action.
+  ///
+  /// Asserts in non-release builds and returns null if the view is unknown,
+  /// the view has no semantics owner, or the node cannot be found. Callers
+  /// should only invoke this in response to a semantics action, in which case
+  /// all three lookups are expected to succeed.
+  ui.Rect? getRectOfSemanticsNodeInViewCoordinates(int viewId, int nodeId) => null;
+
   /// The number of clients registered to listen for semantics.
   ///
   /// The number is increased whenever [ensureSemantics] is called and decreased
@@ -161,7 +177,7 @@ mixin SemanticsBinding on BindingBase {
     // be modified while iterating, we are creating a local copy for the iteration.
     final List<ValueSetter<ui.SemanticsActionEvent>> localListeners = _semanticsActionListeners
         .toList(growable: false);
-    for (final ValueSetter<ui.SemanticsActionEvent> listener in localListeners) {
+    for (final listener in localListeners) {
       if (_semanticsActionListeners.contains(listener)) {
         listener(decodedAction);
       }

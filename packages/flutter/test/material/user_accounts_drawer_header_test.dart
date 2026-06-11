@@ -5,7 +5,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
-import '../widgets/semantics_tester.dart';
 
 const Key avatarA = Key('A');
 const Key avatarC = Key('C');
@@ -64,8 +63,8 @@ void main() {
   );
 
   testWidgets('UserAccountsDrawerHeader inherits ColorScheme.primary', (WidgetTester tester) async {
-    const Color primaryColor = Color(0xff00ff00);
-    const Color colorSchemePrimary = Color(0xff0000ff);
+    const primaryColor = Color(0xff00ff00);
+    const colorSchemePrimary = Color(0xff0000ff);
 
     await pumpTestWidget(
       tester,
@@ -73,7 +72,7 @@ void main() {
       colorSchemePrimary: colorSchemePrimary,
     );
 
-    final BoxDecoration? boxDecoration =
+    final boxDecoration =
         tester.widget<DrawerHeader>(find.byType(DrawerHeader)).decoration as BoxDecoration?;
     expect(boxDecoration?.color == primaryColor, false);
     expect(boxDecoration?.color == colorSchemePrimary, true);
@@ -118,8 +117,8 @@ void main() {
   });
 
   testWidgets('UserAccountsDrawerHeader change default size test', (WidgetTester tester) async {
-    const Size currentAccountPictureSize = Size.square(60.0);
-    const Size otherAccountsPictureSize = Size.square(30.0);
+    const currentAccountPictureSize = Size.square(60.0);
+    const otherAccountsPictureSize = Size.square(30.0);
 
     await pumpTestWidget(
       tester,
@@ -369,7 +368,7 @@ void main() {
     );
     expect(find.text('A'), findsOneWidget);
 
-    const Key avatarA = Key('A');
+    const avatarA = Key('A');
     await tester.pumpWidget(
       buildFrame(
         currentAccountPicture: const CircleAvatar(key: avatarA, child: Text('A')),
@@ -471,7 +470,7 @@ void main() {
     );
     expect(find.text('A'), findsOneWidget);
 
-    const Key avatarA = Key('A');
+    const avatarA = Key('A');
     await tester.pumpWidget(
       buildFrame(
         currentAccountPicture: const CircleAvatar(key: avatarA, child: Text('A')),
@@ -489,53 +488,38 @@ void main() {
   });
 
   testWidgets('UserAccountsDrawerHeader provides semantics', (WidgetTester tester) async {
-    final SemanticsTester semantics = SemanticsTester(tester);
+    final SemanticsHandle handle = tester.ensureSemantics();
     await pumpTestWidget(tester);
 
     expect(
-      semantics,
-      hasSemantics(
-        TestSemantics(
-          children: <TestSemantics>[
-            TestSemantics(
-              children: <TestSemantics>[
-                TestSemantics(
-                  children: <TestSemantics>[
-                    TestSemantics(
-                      flags: <SemanticsFlag>[SemanticsFlag.scopesRoute],
-                      children: <TestSemantics>[
-                        TestSemantics(
-                          flags: <SemanticsFlag>[SemanticsFlag.isFocusable],
-                          label: 'Signed in\nname\nemail',
-                          textDirection: TextDirection.ltr,
-                          actions: <SemanticsAction>[SemanticsAction.focus],
-                          children: <TestSemantics>[
-                            TestSemantics(label: r'B', textDirection: TextDirection.ltr),
-                            TestSemantics(label: r'C', textDirection: TextDirection.ltr),
-                            TestSemantics(label: r'D', textDirection: TextDirection.ltr),
-                            TestSemantics(
-                              flags: <SemanticsFlag>[SemanticsFlag.isButton],
-                              actions: <SemanticsAction>[SemanticsAction.tap],
-                              label: r'Show accounts',
-                              textDirection: TextDirection.ltr,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
-        ignoreId: true,
-        ignoreTransform: true,
-        ignoreRect: true,
+      tester.semantics.find(find.byType(UserAccountsDrawerHeader)),
+      matchesSemantics(
+        isFocusable: true,
+        hasFocusAction: true,
+        label: 'Signed in\nname\nemail',
+        textDirection: TextDirection.ltr,
+        children: <Matcher>[
+          matchesSemantics(label: 'B', textDirection: TextDirection.ltr),
+          matchesSemantics(label: 'C', textDirection: TextDirection.ltr),
+          matchesSemantics(label: 'D', textDirection: TextDirection.ltr),
+          matchesSemantics(
+            isButton: true,
+            hasTapAction: true,
+            label: 'Show accounts',
+            textDirection: TextDirection.ltr,
+          ),
+        ],
       ),
     );
+    expect(
+      find.semantics.ancestor(
+        of: find.semantics.byLabel('Signed in\nname\nemail'),
+        matching: find.semantics.byFlag(SemanticsFlag.scopesRoute),
+      ),
+      findsOne,
+    );
 
-    semantics.dispose();
+    handle.dispose();
   });
 
   testWidgets('alternative account selectors have sufficient tap targets', (
@@ -564,7 +548,7 @@ void main() {
   testWidgets('UserAccountsDrawerHeader provides semantics with missing properties', (
     WidgetTester tester,
   ) async {
-    final SemanticsTester semantics = SemanticsTester(tester);
+    final SemanticsHandle handle = tester.ensureSemantics();
     await pumpTestWidget(
       tester,
       withEmail: false,
@@ -573,40 +557,40 @@ void main() {
     );
 
     expect(
-      semantics,
-      hasSemantics(
-        TestSemantics(
-          children: <TestSemantics>[
-            TestSemantics(
-              children: <TestSemantics>[
-                TestSemantics(
-                  children: <TestSemantics>[
-                    TestSemantics(
-                      flags: <SemanticsFlag>[SemanticsFlag.scopesRoute],
-                      children: <TestSemantics>[
-                        TestSemantics(
-                          label: 'Signed in',
-                          textDirection: TextDirection.ltr,
-                          children: <TestSemantics>[
-                            TestSemantics(label: r'B', textDirection: TextDirection.ltr),
-                            TestSemantics(label: r'C', textDirection: TextDirection.ltr),
-                            TestSemantics(label: r'D', textDirection: TextDirection.ltr),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
-        ignoreId: true,
-        ignoreTransform: true,
-        ignoreRect: true,
+      tester.semantics.find(find.byType(UserAccountsDrawerHeader)),
+      matchesSemantics(
+        label: 'Signed in',
+        textDirection: TextDirection.ltr,
+        children: <Matcher>[
+          matchesSemantics(label: 'B', textDirection: TextDirection.ltr),
+          matchesSemantics(label: 'C', textDirection: TextDirection.ltr),
+          matchesSemantics(label: 'D', textDirection: TextDirection.ltr),
+        ],
       ),
     );
+    expect(
+      find.semantics.ancestor(
+        of: find.semantics.byLabel('Signed in'),
+        matching: find.semantics.byFlag(SemanticsFlag.scopesRoute),
+      ),
+      findsOne,
+    );
 
-    semantics.dispose();
+    handle.dispose();
+  });
+
+  testWidgets('UserAccountsDrawerHeader does not crash at zero area', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox.shrink(
+              child: UserAccountsDrawerHeader(accountName: Text('X'), accountEmail: Text('Y')),
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(tester.getSize(find.byType(UserAccountsDrawerHeader)), Size.zero);
   });
 }

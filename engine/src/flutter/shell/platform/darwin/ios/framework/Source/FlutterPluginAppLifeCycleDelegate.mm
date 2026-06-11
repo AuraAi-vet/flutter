@@ -30,6 +30,9 @@ static const SEL kSelectorsHandledByPlugins[] = {
     NS_EXTENSION_UNAVAILABLE_IOS("Disallowed in app extensions");
 - (void)handleWillTerminate:(NSNotification*)notification
     NS_EXTENSION_UNAVAILABLE_IOS("Disallowed in app extensions");
+
+@property(nonatomic, assign) BOOL didForwardApplicationWillLaunch;
+@property(nonatomic, assign) BOOL didForwardApplicationDidLaunch;
 @end
 
 @implementation FlutterPluginAppLifeCycleDelegate {
@@ -79,7 +82,7 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
 }
 
 - (BOOL)hasPluginThatRespondsToSelector:(SEL)selector {
-  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in [_delegates allObjects]) {
+  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates.allObjects) {
     if (!delegate) {
       continue;
     }
@@ -115,13 +118,70 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
   }
 }
 
+- (void)sceneFallbackDidFinishLaunchingApplication:(UIApplication*)application {
+  // If the application:didFinishingLaunchingWithOptions: event has already been sent to plugins, do
+  // not send again.
+  if (self.didForwardApplicationDidLaunch) {
+    return;
+  }
+  // Send nil launchOptions since UIKit sends nil when UIScene is enabled.
+  [self application:application didFinishLaunchingWithOptions:@{}];
+}
+
+- (void)sceneFallbackWillFinishLaunchingApplication:(UIApplication*)application {
+  // If the application:willFinishLaunchingWithOptions: event has already been sent to plugins, do
+  // not send again.
+  if (self.didForwardApplicationWillLaunch) {
+    return;
+  }
+  // If the application:didFinishingLaunchingWithOptions: event has already been sent to plugins, do
+  // not send willFinishLaunchingWithOptions since it should happen before, not after.
+  if (self.didForwardApplicationDidLaunch) {
+    return;
+  }
+  // Send nil launchOptions since UIKit sends nil when UIScene is enabled.
+  [self application:application willFinishLaunchingWithOptions:@{}];
+}
+
 - (BOOL)application:(UIApplication*)application
     didFinishLaunchingWithOptions:(NSDictionary*)launchOptions {
-  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in [_delegates allObjects]) {
-    if (!delegate) {
+  if (_delegates.count > 0) {
+    self.didForwardApplicationDidLaunch = YES;
+  }
+  return [self application:application
+      didFinishLaunchingWithOptions:launchOptions
+                 isFallbackForScene:NO];
+}
+
+- (BOOL)sceneWillConnectFallback:(UISceneConnectionOptions*)connectionOptions {
+  UIApplication* application = FlutterSharedApplication.application;
+  if (!application) {
+    return NO;
+  }
+  NSDictionary<UIApplicationLaunchOptionsKey, id>* convertedLaunchOptions =
+      ConvertConnectionOptions(connectionOptions);
+  if (convertedLaunchOptions.count == 0) {
+    // Only use fallback if there are meaningful launch options.
+    return NO;
+  }
+  if (![self application:application
+          didFinishLaunchingWithOptions:convertedLaunchOptions
+                     isFallbackForScene:YES]) {
+    return YES;
+  }
+  return NO;
+}
+
+- (BOOL)application:(UIApplication*)application
+    didFinishLaunchingWithOptions:(NSDictionary*)launchOptions
+               isFallbackForScene:(BOOL)isFallback {
+  // Use a snapshot of the delegates to allow plugins to add or remove themselves
+  // during the notification loop without causing a mutation crash.
+  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates.allObjects) {
+    if (!delegate || (isFallback && [self pluginSupportsSceneLifecycle:delegate])) {
       continue;
     }
-    if ([delegate respondsToSelector:_cmd]) {
+    if ([delegate respondsToSelector:@selector(application:didFinishLaunchingWithOptions:)]) {
       if (![delegate application:application didFinishLaunchingWithOptions:launchOptions]) {
         return NO;
       }
@@ -130,10 +190,42 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
   return YES;
 }
 
+/* Makes a best attempt to convert UISceneConnectionOptions from the scene event
+ * (`scene:willConnectToSession:options:`) to a NSDictionary of options used to the application
+ * lifecycle event.
+ *
+ * For more information on UISceneConnectionOptions, see
+ * https://developer.apple.com/documentation/uikit/uiscene/connectionoptions.
+ *
+ * For information about the possible keys in the NSDictionary and how to handle them, see
+ * https://developer.apple.com/documentation/uikit/uiapplication/launchoptionskey
+ */
+static NSDictionary<UIApplicationLaunchOptionsKey, id>* ConvertConnectionOptions(
+    UISceneConnectionOptions* connectionOptions) {
+  NSMutableDictionary<UIApplicationLaunchOptionsKey, id>* convertedOptions =
+      [NSMutableDictionary dictionary];
+
+  if (connectionOptions.shortcutItem) {
+    convertedOptions[UIApplicationLaunchOptionsShortcutItemKey] = connectionOptions.shortcutItem;
+  }
+  if (connectionOptions.sourceApplication) {
+    convertedOptions[UIApplicationLaunchOptionsSourceApplicationKey] =
+        connectionOptions.sourceApplication;
+  }
+  if (connectionOptions.URLContexts.anyObject.URL) {
+    convertedOptions[UIApplicationLaunchOptionsURLKey] =
+        connectionOptions.URLContexts.anyObject.URL;
+  }
+  return convertedOptions;
+}
+
 - (BOOL)application:(UIApplication*)application
     willFinishLaunchingWithOptions:(NSDictionary*)launchOptions {
+  if (_delegates.count > 0) {
+    self.didForwardApplicationWillLaunch = YES;
+  }
   flutter::DartCallbackCache::LoadCacheFromDisk();
-  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in [_delegates allObjects]) {
+  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates.allObjects) {
     if (!delegate) {
       continue;
     }
@@ -185,7 +277,7 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
 
 - (void)applicationDidEnterBackground:(UIApplication*)application
                    isFallbackForScene:(BOOL)isFallback {
-  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates) {
+  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates.allObjects) {
     if (!delegate || (isFallback && [self pluginSupportsSceneLifecycle:delegate])) {
       continue;
     }
@@ -220,7 +312,7 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
 
 - (void)applicationWillEnterForeground:(UIApplication*)application
                     isFallbackForScene:(BOOL)isFallback {
-  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates) {
+  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates.allObjects) {
     if (!delegate || (isFallback && [self pluginSupportsSceneLifecycle:delegate])) {
       continue;
     }
@@ -249,7 +341,7 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
 
 - (void)applicationWillResignActive:(UIApplication*)application
                  isFallbackForScene:(BOOL)isFallback {
-  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates) {
+  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates.allObjects) {
     if (!delegate || (isFallback && [self pluginSupportsSceneLifecycle:delegate])) {
       continue;
     }
@@ -277,7 +369,7 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
 }
 
 - (void)applicationDidBecomeActive:(UIApplication*)application isFallbackForScene:(BOOL)isFallback {
-  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates) {
+  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates.allObjects) {
     if (!delegate || (isFallback && [self pluginSupportsSceneLifecycle:delegate])) {
       continue;
     }
@@ -290,7 +382,7 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
 - (void)handleWillTerminate:(NSNotification*)notification
     NS_EXTENSION_UNAVAILABLE_IOS("Disallowed in app extensions") {
   UIApplication* application = [UIApplication sharedApplication];
-  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates) {
+  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates.allObjects) {
     if (!delegate) {
       continue;
     }
@@ -304,7 +396,7 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 - (void)application:(UIApplication*)application
     didRegisterUserNotificationSettings:(UIUserNotificationSettings*)notificationSettings {
-  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates) {
+  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates.allObjects) {
     if (!delegate) {
       continue;
     }
@@ -317,7 +409,7 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
 
 - (void)application:(UIApplication*)application
     didRegisterForRemoteNotificationsWithDeviceToken:(NSData*)deviceToken {
-  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates) {
+  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates.allObjects) {
     if (!delegate) {
       continue;
     }
@@ -330,7 +422,7 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
 
 - (void)application:(UIApplication*)application
     didFailToRegisterForRemoteNotificationsWithError:(NSError*)error {
-  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates) {
+  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates.allObjects) {
     if (!delegate) {
       continue;
     }
@@ -343,7 +435,7 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
 - (void)application:(UIApplication*)application
     didReceiveRemoteNotification:(NSDictionary*)userInfo
           fetchCompletionHandler:(void (^)(UIBackgroundFetchResult result))completionHandler {
-  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates) {
+  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates.allObjects) {
     if (!delegate) {
       continue;
     }
@@ -361,7 +453,7 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 - (void)application:(UIApplication*)application
     didReceiveLocalNotification:(UILocalNotification*)notification {
-  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates) {
+  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates.allObjects) {
     if (!delegate) {
       continue;
     }
@@ -376,7 +468,7 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
        willPresentNotification:(UNNotification*)notification
          withCompletionHandler:
              (void (^)(UNNotificationPresentationOptions options))completionHandler {
-  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates) {
+  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates.allObjects) {
     if ([delegate respondsToSelector:_cmd]) {
       [delegate userNotificationCenter:center
                willPresentNotification:notification
@@ -388,7 +480,7 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
 - (void)userNotificationCenter:(UNUserNotificationCenter*)center
     didReceiveNotificationResponse:(UNNotificationResponse*)response
              withCompletionHandler:(void (^)(void))completionHandler {
-  for (id<FlutterApplicationLifeCycleDelegate> delegate in _delegates) {
+  for (id<FlutterApplicationLifeCycleDelegate> delegate in _delegates.allObjects) {
     if ([delegate respondsToSelector:_cmd]) {
       [delegate userNotificationCenter:center
           didReceiveNotificationResponse:response
@@ -419,7 +511,7 @@ static BOOL IsPowerOfTwo(NSUInteger x) {
                openURL:(NSURL*)url
                options:(NSDictionary<UIApplicationOpenURLOptionsKey, id>*)options
     isFallbackForScene:(BOOL)isFallback {
-  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates) {
+  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates.allObjects) {
     if (!delegate || (isFallback && [self pluginSupportsSceneLifecycle:delegate])) {
       continue;
     }
@@ -461,7 +553,7 @@ static NSDictionary<UIApplicationOpenURLOptionsKey, id>* ConvertOptions(
 }
 
 - (BOOL)application:(UIApplication*)application handleOpenURL:(NSURL*)url {
-  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates) {
+  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates.allObjects) {
     if (!delegate) {
       continue;
     }
@@ -478,7 +570,7 @@ static NSDictionary<UIApplicationOpenURLOptionsKey, id>* ConvertOptions(
               openURL:(NSURL*)url
     sourceApplication:(NSString*)sourceApplication
            annotation:(id)annotation {
-  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates) {
+  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates.allObjects) {
     if (!delegate) {
       continue;
     }
@@ -519,12 +611,13 @@ static NSDictionary<UIApplicationOpenURLOptionsKey, id>* ConvertOptions(
     performActionForShortcutItem:(UIApplicationShortcutItem*)shortcutItem
                completionHandler:(void (^)(BOOL succeeded))completionHandler
               isFallbackForScene:(BOOL)isFallback {
-  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates) {
+  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates.allObjects) {
     if (!delegate || (isFallback && [self pluginSupportsSceneLifecycle:delegate])) {
       continue;
     }
-    if ([delegate respondsToSelector:@selector(application:
-                                         performActionForShortcutItem:completionHandler:)]) {
+    if ([delegate
+            respondsToSelector:@selector(
+                                   application:performActionForShortcutItem:completionHandler:)]) {
       if ([delegate application:application
               performActionForShortcutItem:shortcutItem
                          completionHandler:completionHandler]) {
@@ -538,7 +631,7 @@ static NSDictionary<UIApplicationOpenURLOptionsKey, id>* ConvertOptions(
 - (BOOL)application:(UIApplication*)application
     handleEventsForBackgroundURLSession:(nonnull NSString*)identifier
                       completionHandler:(nonnull void (^)())completionHandler {
-  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates) {
+  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates.allObjects) {
     if (!delegate) {
       continue;
     }
@@ -555,7 +648,7 @@ static NSDictionary<UIApplicationOpenURLOptionsKey, id>* ConvertOptions(
 
 - (BOOL)application:(UIApplication*)application
     performFetchWithCompletionHandler:(void (^)(UIBackgroundFetchResult result))completionHandler {
-  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates) {
+  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates.allObjects) {
     if (!delegate) {
       continue;
     }
@@ -592,12 +685,12 @@ static NSDictionary<UIApplicationOpenURLOptionsKey, id>* ConvertOptions(
     continueUserActivity:(NSUserActivity*)userActivity
       restorationHandler:(void (^)(NSArray*))restorationHandler
       isFallbackForScene:(BOOL)isFallback {
-  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates) {
+  for (NSObject<FlutterApplicationLifeCycleDelegate>* delegate in _delegates.allObjects) {
     if (!delegate || (isFallback && [self pluginSupportsSceneLifecycle:delegate])) {
       continue;
     }
-    if ([delegate respondsToSelector:@selector(application:
-                                         continueUserActivity:restorationHandler:)]) {
+    if ([delegate
+            respondsToSelector:@selector(application:continueUserActivity:restorationHandler:)]) {
       if ([delegate application:application
               continueUserActivity:userActivity
                 restorationHandler:restorationHandler]) {

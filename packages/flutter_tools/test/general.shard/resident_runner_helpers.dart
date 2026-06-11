@@ -90,6 +90,21 @@ final fakeVM = vm_service.VM(
 
 final fakeFlutterView = FlutterView(id: 'a', uiIsolate: fakeUnpausedIsolate);
 
+/// Returns a [FakeVmServiceRequest] for the 'getVM' method with the provided
+/// [isolates].
+FakeVmServiceRequest getVm([List<vm_service.Isolate>? isolates]) {
+  // TODO(dantup): Remove this if vm_service is updated to convert nulls back
+  //  to empty lists.
+  //  See https://github.com/flutter/flutter/pull/185274#discussion_r3116379311
+  isolates ??= [];
+  return FakeVmServiceRequest(
+    method: 'getVM',
+    jsonResponse: vm_service.VM.parse(<String, Object>{
+      'isolates': isolates.map((isolate) => isolate.toJson()).toList(),
+    })!.toJson(),
+  );
+}
+
 final listViews = FakeVmServiceRequest(
   method: kListViewsMethod,
   jsonResponse: <String, Object>{
@@ -155,7 +170,12 @@ class FakeDartDevelopmentServiceException implements DartDevelopmentServiceExcep
 class TestFlutterDevice extends FlutterDevice {
   TestFlutterDevice(super.device, {Stream<Uri>? vmServiceUris})
     : _vmServiceUris = vmServiceUris,
-      super(buildInfo: BuildInfo.debug, developmentShaderCompiler: const FakeShaderCompiler());
+      super(
+        generator: FakeResidentCompiler(),
+        targetPlatform: .unsupported,
+        buildInfo: BuildInfo.debug,
+        developmentShaderCompiler: const FakeShaderCompiler(),
+      );
 
   final Stream<Uri>? _vmServiceUris;
 
@@ -178,11 +198,11 @@ class ThrowingForwardingFileSystem extends ForwardingFileSystem {
 class FakeFlutterDevice extends Fake implements FlutterDevice {
   FakeVmServiceHost? Function()? vmServiceHost;
   Uri? testUri;
-  var report = UpdateFSReport(success: true, invalidatedSourcesCount: 1);
+  UpdateFSReport report = UpdateFSReport(success: true, invalidatedSourcesCount: 1);
   Exception? reportError;
   Exception? runColdError;
-  var runHotCode = 0;
-  var runColdCode = 0;
+  int runHotCode = 0;
+  int runColdCode = 0;
 
   @override
   ResidentCompiler? generator;
@@ -277,6 +297,7 @@ class FakeDelegateFlutterDevice extends FlutterDevice {
     ResidentCompiler residentCompiler,
     this.fakeDevFS,
   ) : super(
+        targetPlatform: .unsupported,
         buildInfo: buildInfo,
         generator: residentCompiler,
         developmentShaderCompiler: const FakeShaderCompiler(),
@@ -305,9 +326,9 @@ class FakeDelegateFlutterDevice extends FlutterDevice {
 
 class FakeResidentCompiler extends Fake implements ResidentCompiler {
   CompilerOutput? nextOutput;
-  var didSuppressErrors = false;
+  bool didSuppressErrors = false;
   Uri? receivedNativeAssetsYaml;
-  var recompileCalled = false;
+  bool recompileCalled = false;
 
   @override
   Future<CompilerOutput?> recompile(
@@ -368,9 +389,9 @@ class FakeDevice extends Fake implements Device {
   final TargetPlatform _targetPlatform;
   final String _sdkNameAndVersion;
 
-  var disposed = false;
-  var appStopped = false;
-  var failScreenshot = false;
+  bool disposed = false;
+  bool appStopped = false;
+  bool failScreenshot = false;
 
   @override
   bool supportsHotRestart;
@@ -441,27 +462,27 @@ class FakeDevFS extends Fake implements DevFS {
   PackageConfig? lastPackageConfig = PackageConfig.empty;
 
   @override
-  var sources = <Uri>[];
+  List<Uri> sources = <Uri>[];
 
   @override
-  var baseUri = Uri();
+  Uri baseUri = Uri();
 
   @override
   Future<void> destroy() async {}
 
   @override
-  var assetPathsToEvict = <String>{};
+  Set<String> assetPathsToEvict = <String>{};
 
   @override
-  var shaderPathsToEvict = <String>{};
+  Set<String> shaderPathsToEvict = <String>{};
 
   @override
-  var didUpdateFontManifest = false;
+  bool didUpdateFontManifest = false;
 
-  var nextUpdateReport = UpdateFSReport(success: true);
+  UpdateFSReport nextUpdateReport = UpdateFSReport(success: true);
 
   @override
-  var hasSetAssetDirectory = false;
+  bool hasSetAssetDirectory = false;
 
   @override
   Future<Uri> create() async {

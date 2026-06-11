@@ -213,7 +213,7 @@ class CupertinoCheckbox extends StatefulWidget {
   ///   onChanged: (_){},
   ///   fillColor: WidgetStateProperty.resolveWith<Color>((Set<WidgetState> states) {
   ///     if (states.contains(WidgetState.disabled)) {
-  ///       return Colors.orange.withOpacity(.32);
+  ///       return Colors.orange.withValues(alpha: .32);
   ///     }
   ///     return Colors.orange;
   ///   })
@@ -470,7 +470,9 @@ class _CupertinoCheckboxState extends State<CupertinoCheckbox>
           ..value = value
           ..previousValue = _previousValue
           ..isActive = widget.onChanged != null
-          ..shape = widget.shape ?? RoundedRectangleBorder(borderRadius: BorderRadius.circular(4.0))
+          ..shape =
+              widget.shape ??
+              const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(4.0)))
           ..side = effectiveBorderSide
           ..brightness = CupertinoTheme.of(context).brightness,
       ),
@@ -541,7 +543,7 @@ class _CheckboxPainter extends ToggleablePainter {
 
   Rect _outerRectAt(Offset origin) {
     const double size = CupertinoCheckbox.width;
-    final Rect rect = Rect.fromLTWH(origin.dx, origin.dy, size, size);
+    final rect = Rect.fromLTWH(origin.dx, origin.dy, size, size);
     return rect;
   }
 
@@ -562,14 +564,18 @@ class _CheckboxPainter extends ToggleablePainter {
 
   // Draw a gradient from the top to the bottom of the checkbox.
   void _drawFillGradient(Canvas canvas, Rect outer, Color topColor, Color bottomColor) {
-    final LinearGradient fillGradient = LinearGradient(
+    final fillGradient = LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
       // Eyeballed from a checkbox on a physical Macbook Pro running macOS version 14.5.
       colors: <Color>[topColor, bottomColor],
     );
-    final Paint gradientPaint = Paint()..shader = fillGradient.createShader(outer);
-    canvas.drawPath(shape.getOuterPath(outer), gradientPaint);
+    final gradientPaint = Paint()..shader = fillGradient.createShader(outer);
+    if (shape.preferPaintInterior) {
+      shape.paintInterior(canvas, outer, gradientPaint);
+    } else {
+      canvas.drawPath(shape.getOuterPath(outer), gradientPaint);
+    }
   }
 
   void _drawBox(Canvas canvas, Rect outer, Paint paint, BorderSide? side, bool value) {
@@ -585,6 +591,8 @@ class _CheckboxPainter extends ToggleablePainter {
           isActive ? _kDarkGradientOpacities[1] : _kDisabledDarkGradientOpacities[1],
         ),
       );
+    } else if (shape.preferPaintInterior) {
+      shape.paintInterior(canvas, outer, paint);
     } else {
       canvas.drawPath(shape.getOuterPath(outer), paint);
     }
@@ -594,13 +602,13 @@ class _CheckboxPainter extends ToggleablePainter {
   }
 
   void _drawCheck(Canvas canvas, Offset origin, Paint paint) {
-    final Path path = Path();
+    final path = Path();
     // The ratios for the offsets below were found from looking at the checkbox
     // examples on in the HIG docs. The distance from the needed point to the
     // edge was measured, then divided by the total width.
-    const Offset start = Offset(CupertinoCheckbox.width * 0.22, CupertinoCheckbox.width * 0.54);
-    const Offset mid = Offset(CupertinoCheckbox.width * 0.40, CupertinoCheckbox.width * 0.75);
-    const Offset end = Offset(CupertinoCheckbox.width * 0.78, CupertinoCheckbox.width * 0.25);
+    const start = Offset(CupertinoCheckbox.width * 0.22, CupertinoCheckbox.width * 0.54);
+    const mid = Offset(CupertinoCheckbox.width * 0.40, CupertinoCheckbox.width * 0.75);
+    const end = Offset(CupertinoCheckbox.width * 0.78, CupertinoCheckbox.width * 0.25);
     path.moveTo(origin.dx + start.dx, origin.dy + start.dy);
     path.lineTo(origin.dx + mid.dx, origin.dy + mid.dy);
     path.moveTo(origin.dx + mid.dx, origin.dy + mid.dy);
@@ -611,17 +619,17 @@ class _CheckboxPainter extends ToggleablePainter {
   void _drawDash(Canvas canvas, Offset origin, Paint paint) {
     // From measuring the checkbox example in the HIG docs, the dash was found
     // to be half the total width, centered in the middle.
-    const Offset start = Offset(CupertinoCheckbox.width * 0.25, CupertinoCheckbox.width * 0.5);
-    const Offset end = Offset(CupertinoCheckbox.width * 0.75, CupertinoCheckbox.width * 0.5);
+    const start = Offset(CupertinoCheckbox.width * 0.25, CupertinoCheckbox.width * 0.5);
+    const end = Offset(CupertinoCheckbox.width * 0.75, CupertinoCheckbox.width * 0.5);
     canvas.drawLine(origin + start, origin + end, paint);
   }
 
   @override
   void paint(Canvas canvas, Size size) {
     final Paint strokePaint = _createStrokePaint();
-    final Offset origin = size / 2.0 - const Size.square(CupertinoCheckbox.width) / 2.0 as Offset;
+    final origin = size / 2.0 - const Size.square(CupertinoCheckbox.width) / 2.0 as Offset;
     final Rect outer = _outerRectAt(origin);
-    final Paint paint = Paint()..color = _colorAt(value ?? true);
+    final paint = Paint()..color = _colorAt(value ?? true);
 
     switch (value) {
       case false:
@@ -635,15 +643,19 @@ class _CheckboxPainter extends ToggleablePainter {
     }
     // The checkbox's opacity changes when pressed.
     if (downPosition != null) {
-      final Paint pressedPaint = Paint()
+      final pressedPaint = Paint()
         ..color = brightness == Brightness.light
             ? CupertinoColors.black.withOpacity(_kPressedOverlayOpacity)
             : CupertinoColors.white.withOpacity(_kPressedOverlayOpacity);
-      canvas.drawPath(shape.getOuterPath(outer), pressedPaint);
+      if (shape.preferPaintInterior) {
+        shape.paintInterior(canvas, outer, pressedPaint);
+      } else {
+        canvas.drawPath(shape.getOuterPath(outer), pressedPaint);
+      }
     }
     if (isFocused) {
       final Rect focusOuter = outer.inflate(1);
-      final Paint borderPaint = Paint()
+      final borderPaint = Paint()
         ..color = focusColor
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3.5;

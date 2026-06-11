@@ -29,20 +29,17 @@ Future<void> testMain() async {
     fakeAssetManager.popAssetScope(testScope);
   });
 
-  test(
-    'Loading valid font from data succeeds without family name (except in HTML renderer)',
-    () async {
-      final FlutterFontCollection collection = renderer.fontCollection;
-      final ByteBuffer ahemData = await httpFetchByteBuffer('/assets/fonts/ahem.ttf');
-      expect(await collection.loadFontFromList(ahemData.asUint8List()), isTrue);
-    },
-  );
+  test('Loading valid font from data succeeds without family name', () async {
+    final FlutterFontCollection collection = renderer.fontCollection;
+    final ByteBuffer ahemData = await httpFetchByteBuffer('/assets/fonts/ahem.ttf');
+    expect(await collection.loadFontFromBytes(ahemData.asUint8List()), isTrue);
+  });
 
   test('Loading valid font from data succeeds with family name', () async {
     final FlutterFontCollection collection = renderer.fontCollection;
     final ByteBuffer ahemData = await httpFetchByteBuffer('/assets/fonts/ahem.ttf');
     expect(
-      await collection.loadFontFromList(ahemData.asUint8List(), fontFamily: 'FamilyName'),
+      await collection.loadFontFromBytes(ahemData.asUint8List(), fontFamily: 'FamilyName'),
       true,
     );
   });
@@ -51,7 +48,7 @@ Future<void> testMain() async {
     final FlutterFontCollection collection = renderer.fontCollection;
     final List<int> invalidFontData = utf8.encode('This is not valid font data');
     expect(
-      await collection.loadFontFromList(
+      await collection.loadFontFromBytes(
         Uint8List.fromList(invalidFontData),
         fontFamily: 'FamilyName',
       ),
@@ -82,7 +79,7 @@ Future<void> testMain() async {
     testScope.setAssetPassthrough(robotoVariableFontUrl);
     testScope.setAssetPassthrough(robotoTestFontUrl);
 
-    const String invalidFontUrl = 'assets/invalid_font_url.ttf';
+    const invalidFontUrl = 'assets/invalid_font_url.ttf';
 
     final FlutterFontCollection collection = renderer.fontCollection;
     final AssetFontsResult result = await collection.loadAssetFonts(
@@ -100,7 +97,7 @@ Future<void> testMain() async {
   });
 
   test('Loading asset fonts reports when a font has invalid data', () async {
-    const String invalidFontUrl = 'assets/invalid_font_data.ttf';
+    const invalidFontUrl = 'assets/invalid_font_data.ttf';
 
     testScope.setAssetPassthrough(robotoVariableFontUrl);
     testScope.setAssetPassthrough(robotoTestFontUrl);

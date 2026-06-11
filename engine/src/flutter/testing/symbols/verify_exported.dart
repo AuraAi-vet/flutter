@@ -47,7 +47,13 @@ void main(List<String> arguments) {
   if (Platform.isLinux) {
     platform = 'linux-x64';
   } else if (Platform.isMacOS) {
-    platform = 'mac-x64';
+    final ProcessResult unameResult = Process.runSync('uname', <String>['-m']);
+    if (unameResult.exitCode != 0) {
+      print('ERROR: failed to execute "uname -m":\n${unameResult.stderr}');
+      exit(1);
+    }
+    final arch = unameResult.stdout.toString().trim() == 'x86_64' ? 'x64' : 'arm64';
+    platform = 'mac-$arch';
   } else {
     throw UnimplementedError('Script only support running on Linux or MacOS.');
   }
@@ -71,7 +77,7 @@ void main(List<String> arguments) {
     (String s) => s.startsWith('host_'),
   );
 
-  int failures = 0;
+  var failures = 0;
   failures += _checkIos(outPath, nmPath, iosReleaseBuilds);
   failures += _checkAndroid(outPath, nmPath, androidReleaseBuilds);
   if (Platform.isLinux) {
@@ -82,8 +88,8 @@ void main(List<String> arguments) {
 }
 
 int _checkIos(String outPath, String nmPath, Iterable<String> builds) {
-  int failures = 0;
-  for (final String build in builds) {
+  var failures = 0;
+  for (final build in builds) {
     final String libFlutter = p.join(outPath, build, 'Flutter.framework', 'Flutter');
     if (!File(libFlutter).existsSync()) {
       print('SKIPPING: $libFlutter does not exist.');
@@ -109,8 +115,39 @@ int _checkIos(String outPath, String nmPath, Iterable<String> builds) {
           (entry.type == '(__DATA,__objc_data)' || entry.type == '(__DATA,__data)') &&
           (entry.name.startsWith(r'_OBJC_METACLASS_$_Flutter') ||
               entry.name.startsWith(r'_OBJC_CLASS_$_Flutter'));
+
       // Swift's name mangling uses s followed by symbol length followed by symbol.
-      final RegExp swiftInternalRegExp = RegExp(r'^_\$s\d+InternalFlutterSwift');
+      final swiftInternalRegExp = RegExp(r'^_\$s\d+InternalFlutterSwift');
+
+      // Swift extensions on Objective-C classes (in Swift's 'So' namespace)
+      // mangle differently than standard Swift symbols. Instead of starting
+      // with the module name (e.g. _$s25InternalFlutterSwift...), they start
+      // with the extended type (e.g. _$sSo14FlutterTracingC...) and have the
+      // module name embedded inside.
+      //
+      // The Swift compiler may compress repeated tokens in the module name
+      // (e.g. substituting 'Flutter' with 'A' in 'InternalFlutterSwiftCommon'
+      // if 'Flutter' was already used in the type name being extended.
+      //
+      // This matches extensions defined in internal modules starting with
+      // 'Internal.*Swift' such as 'InternalFlutterSwiftCommon' from our shared
+      // iOS/macOS code, which the compiler shortens to
+      // 'InternalA11SwiftCommon'.
+      //
+      // Swift encodes these as a string of ${TYPE}|${LENGTH}${Symbol}|${SUBSTITUTION}s.
+      // In the above example:
+      // * $sSo: global static function extension.
+      // * 14FlutterTracing: 14 bytes long, "FlutterTracing".
+      // * C: class
+      // * 08InternalA11SwiftCommon: [8 bytes long, "Internal"] + [substitution A
+      //   ("Flutter" from earlier in the symbol)] + [11 bytes long, "SwiftCommon"].
+      // * E: extension.
+      //
+      // Details: https://github.com/swiftlang/swift/blob/main/docs/ABI/Mangling.rst
+      final swiftInternalExtensionRegExp = RegExp(
+        r'^_\$sSo\d+[A-Za-z0-9_]+[CP]\d+Internal.*Swift.*E',
+      );
+
       final bool swiftInternalSymbol =
           (entry.type == '(__TEXT,__text)' ||
               entry.type == '(__TEXT,__const)' ||
@@ -118,7 +155,8 @@ int _checkIos(String outPath, String nmPath, Iterable<String> builds) {
               entry.type == '(__DATA_CONST,__const)' ||
               entry.type == '(__DATA,__data)' ||
               entry.type == '(__DATA,__objc_data)') &&
-          swiftInternalRegExp.hasMatch(entry.name);
+          (swiftInternalRegExp.hasMatch(entry.name) ||
+              swiftInternalExtensionRegExp.hasMatch(entry.name));
       return !(cSymbol || cInternalSymbol || objcSymbol || swiftInternalSymbol);
     });
     if (unexpectedEntries.isNotEmpty) {
@@ -137,8 +175,8 @@ int _checkIos(String outPath, String nmPath, Iterable<String> builds) {
 }
 
 int _checkAndroid(String outPath, String nmPath, Iterable<String> builds) {
-  int failures = 0;
-  for (final String build in builds) {
+  var failures = 0;
+  for (final build in builds) {
     final String libFlutter = p.join(outPath, build, 'libflutter.so');
     if (!File(libFlutter).existsSync()) {
       print('SKIPPING: $libFlutter does not exist.');
@@ -151,15 +189,13 @@ int _checkAndroid(String outPath, String nmPath, Iterable<String> builds) {
       continue;
     }
     final Iterable<NmEntry> entries = NmEntry.parse(nmResult.stdout as String);
-    final Map<String, String> entryMap = <String, String>{
-      for (final NmEntry entry in entries) entry.name: entry.type,
-    };
-    final Map<String, String> expectedSymbols = <String, String>{
+    final entryMap = <String, String>{for (final NmEntry entry in entries) entry.name: entry.type};
+    final expectedSymbols = <String, String>{
       'JNI_OnLoad': 'T',
       '_binary_icudtl_dat_size': 'R',
       '_binary_icudtl_dat_start': 'R',
     };
-    final Map<String, String> badSymbols = <String, String>{};
+    final badSymbols = <String, String>{};
     for (final String key in entryMap.keys) {
       final bool isValidFlutterGpuSymbol =
           key.startsWith('InternalFlutterGpu') && entryMap[key] == 'T';
@@ -181,8 +217,8 @@ int _checkAndroid(String outPath, String nmPath, Iterable<String> builds) {
 }
 
 int _checkLinux(String outPath, String nmPath, Iterable<String> builds) {
-  int failures = 0;
-  for (final String build in builds) {
+  var failures = 0;
+  for (final build in builds) {
     final String libFlutter = p.join(outPath, build, 'libflutter_engine.so');
     if (!File(libFlutter).existsSync()) {
       print('SKIPPING: $libFlutter does not exist.');
@@ -195,7 +231,7 @@ int _checkLinux(String outPath, String nmPath, Iterable<String> builds) {
       continue;
     }
     final List<NmEntry> entries = NmEntry.parse(nmResult.stdout as String).toList();
-    for (final NmEntry entry in entries) {
+    for (final entry in entries) {
       if (entry.type != 'T' && entry.type != 'R') {
         print('ERROR: $libFlutter exports an unexpected symbol type: ($entry)');
         print(' Library has $entries.');

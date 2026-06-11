@@ -101,7 +101,7 @@ class ImageInfo {
   /// ```
   /// {@end-tool}
   bool isCloneOf(ImageInfo other) {
-    return other.image.isCloneOf(image) && scale == scale && other.debugLabel == debugLabel;
+    return other.image.isCloneOf(image) && other.scale == scale && other.debugLabel == debugLabel;
   }
 
   /// The raw image pixels.
@@ -172,7 +172,7 @@ class ImageInfo {
 @immutable
 class ImageStreamListener {
   /// Creates a new [ImageStreamListener].
-  const ImageStreamListener(this.onImage, {this.onChunk, this.onError});
+  const ImageStreamListener(this.onImage, {this.onChunk, this.onError, this.reportErrors = true});
 
   /// Callback for getting notified that an image is available.
   ///
@@ -215,11 +215,23 @@ class ImageStreamListener {
   /// If an image stream has no listeners that handled the error when the error
   /// was first encountered, then the error is reported using
   /// [FlutterError.reportError], with the [FlutterErrorDetails.silent] flag set
-  /// to true.
+  /// to true. This report is suppressed if a listener whose [reportErrors] is false has ever been
+  /// registered on the completer.
   final ImageErrorListener? onError;
 
+  /// Whether to report errors to [FlutterError.onError] after this listener
+  /// is removed from the [ImageStreamCompleter].
+  ///
+  /// Defaults to true. When false, errors that arrive after removal are
+  /// silently discarded. This is useful when [FlutterError.onError] is
+  /// configured to report errors to a server.
+  ///
+  /// The [Image] widget sets this to false when an [Image.errorBuilder] is
+  /// provided.
+  final bool reportErrors;
+
   @override
-  int get hashCode => Object.hash(onImage, onChunk, onError);
+  int get hashCode => Object.hash(onImage, onChunk, onError, reportErrors);
 
   @override
   bool operator ==(Object other) {
@@ -229,7 +241,8 @@ class ImageStreamListener {
     return other is ImageStreamListener &&
         other.onImage == onImage &&
         other.onChunk == onChunk &&
-        other.onError == onError;
+        other.onError == onError &&
+        other.reportErrors == reportErrors;
   }
 }
 
@@ -393,7 +406,7 @@ class ImageStream with Diagnosticable {
       return _completer!.removeListener(listener);
     }
     assert(_listeners != null);
-    for (int i = 0; i < _listeners!.length; i += 1) {
+    for (var i = 0; i < _listeners!.length; i += 1) {
       if (_listeners![i] == listener) {
         _listeners!.removeAt(i);
         break;
@@ -517,6 +530,13 @@ abstract class ImageStreamCompleter with Diagnosticable {
   /// that they are being called asynchronously.
   bool _addingInitialListeners = false;
 
+  /// Whether a listener with [ImageStreamListener.reportErrors] set to false
+  /// has ever been added.
+  ///
+  /// When true, [reportError] skips [FlutterError.reportError] for errors
+  /// that arrive after all listeners have been removed.
+  bool _hadErrorListener = false;
+
   /// Adds a listener callback that is called whenever a new concrete [ImageInfo]
   /// object is available or an error is reported. If a concrete image is
   /// already available, or if an error has been already reported, this object
@@ -533,6 +553,10 @@ abstract class ImageStreamCompleter with Diagnosticable {
   ///    automatically removed after first image load or error.
   void addListener(ImageStreamListener listener) {
     _checkDisposed();
+    // Track that a listener opted out of error reporting.
+    if (!listener.reportErrors) {
+      _hadErrorListener = true;
+    }
     _listeners.add(listener);
     if (_currentImage != null) {
       try {
@@ -639,7 +663,7 @@ abstract class ImageStreamCompleter with Diagnosticable {
   /// disposed, this image stream is no longer usable.
   void removeListener(ImageStreamListener listener) {
     _checkDisposed();
-    for (int i = 0; i < _listeners.length; i += 1) {
+    for (var i = 0; i < _listeners.length; i += 1) {
       if (_listeners[i] == listener) {
         _listeners.removeAt(i);
         break;
@@ -647,7 +671,7 @@ abstract class ImageStreamCompleter with Diagnosticable {
     }
     if (_listeners.isEmpty) {
       final List<VoidCallback> callbacks = _onLastListenerRemovedCallbacks.toList();
-      for (final VoidCallback callback in callbacks) {
+      for (final callback in callbacks) {
         callback();
       }
       _onLastListenerRemovedCallbacks.clear();
@@ -734,8 +758,8 @@ abstract class ImageStreamCompleter with Diagnosticable {
       return;
     }
     // Make a copy to allow for concurrent modification.
-    final List<ImageStreamListener> localListeners = List<ImageStreamListener>.of(_listeners);
-    for (final ImageStreamListener listener in localListeners) {
+    final localListeners = List<ImageStreamListener>.of(_listeners);
+    for (final listener in localListeners) {
       try {
         listener.onImage(image.clone(), false);
       } catch (exception, stack) {
@@ -754,7 +778,9 @@ abstract class ImageStreamCompleter with Diagnosticable {
   /// If no error listeners (listeners with an [ImageStreamListener.onError]
   /// specified) are attached, or if the handlers all rethrow the exception
   /// verbatim (with `throw exception`), a [FlutterError] will be reported using
-  /// [FlutterError.reportError].
+  /// [FlutterError.reportError]. This report is suppressed if
+  /// [ImageStreamListener] whose [ImageStreamListener.reportErrors] is false has ever been registered on
+  /// this completer.
   ///
   /// The `context` should be a string describing where the error was caught, in
   /// a form that will make sense in English when following the word "thrown",
@@ -796,7 +822,7 @@ abstract class ImageStreamCompleter with Diagnosticable {
     );
 
     // Make a copy to allow for concurrent modification.
-    final List<ImageErrorListener> localErrorListeners = <ImageErrorListener>[
+    final localErrorListeners = <ImageErrorListener>[
       ..._listeners
           .map<ImageErrorListener?>((ImageStreamListener listener) => listener.onError)
           .whereType<ImageErrorListener>(),
@@ -805,8 +831,8 @@ abstract class ImageStreamCompleter with Diagnosticable {
 
     _ephemeralErrorListeners.clear();
 
-    bool handled = false;
-    for (final ImageErrorListener errorListener in localErrorListeners) {
+    var handled = false;
+    for (final errorListener in localErrorListeners) {
       try {
         errorListener(exception, stack);
         handled = true;
@@ -824,6 +850,12 @@ abstract class ImageStreamCompleter with Diagnosticable {
       }
     }
     if (!handled) {
+      // If a listener with reportErrors=false was previously registered,
+      // the error was intended to be handled. Skip reporting to
+      // FlutterError.onError after the widget is disposed.
+      if (_hadErrorListener) {
+        return;
+      }
       FlutterError.reportError(_currentError!);
     }
   }
@@ -840,7 +872,7 @@ abstract class ImageStreamCompleter with Diagnosticable {
           .map<ImageChunkListener?>((ImageStreamListener listener) => listener.onChunk)
           .whereType<ImageChunkListener>()
           .toList();
-      for (final ImageChunkListener listener in localListeners) {
+      for (final listener in localListeners) {
         listener(event);
       }
     }

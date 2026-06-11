@@ -460,21 +460,27 @@ class FakeApplicationPackageFactory extends Fake implements ApplicationPackageFa
   }) async => applicationPackage;
 }
 
-class FakeApplicationPackage extends Fake implements ApplicationPackage {}
+class FakeApplicationPackage extends Fake implements ApplicationPackage {
+  @override
+  String get name => 'fakeAppPackage';
+}
 
 class FakeDevice extends Fake implements Device {
   FakeDevice(this.result, {this.supportsFlutterExit = true});
 
   LaunchResult result;
-  var didStopApp = false;
-  var didUninstallApp = false;
-  var didDispose = false;
-  var failOnce = false;
+  bool didStopApp = false;
+  bool didUninstallApp = false;
+  bool didDispose = false;
+  bool failOnce = false;
   @override
   final PlatformType platformType = PlatformType.web;
 
   @override
   String get name => 'test';
+
+  @override
+  String get displayName => name;
 
   @override
   final bool supportsFlutterExit;
@@ -530,8 +536,8 @@ class FakeDevice extends Fake implements Device {
 class FakeDartDevelopmentService extends Fake
     with DartDevelopmentServiceLocalOperationsMixin
     implements DartDevelopmentService {
-  var started = false;
-  var disposed = false;
+  bool started = false;
+  bool disposed = false;
 
   @override
   final Uri uri = Uri.parse('http://127.0.0.1:1234/');
@@ -539,6 +545,7 @@ class FakeDartDevelopmentService extends Fake
   @override
   Future<void> startDartDevelopmentService(
     Uri vmServiceUri, {
+    String? appName = 'Fake App',
     FlutterDevice? device,
     int? ddsPort,
     bool? ipv6,

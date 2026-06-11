@@ -2485,4 +2485,146 @@ TEST(FlutterTextInputPluginTest, InsertTextWithCollapsedSelectionInsideComposing
       [[FlutterInputPluginTestObjc alloc] testInsertTextWithCollapsedSelectionInsideComposing]);
 }
 
+TEST(FlutterTextInputPluginTest, InsertTextHandlesNSAttributedString) {
+  id engineMock = flutter::testing::CreateMockFlutterEngine(@"");
+  id binaryMessengerMock = OCMProtocolMock(@protocol(FlutterBinaryMessenger));
+  OCMStub(  // NOLINT(google-objc-avoid-throwing-exception)
+      [engineMock binaryMessenger])
+      .andReturn(binaryMessengerMock);
+
+  FlutterViewController* viewController = [[FlutterViewController alloc] initWithEngine:engineMock
+                                                                                nibName:@""
+                                                                                 bundle:nil];
+
+  FlutterTextInputPluginTestDelegate* delegate =
+      [[FlutterTextInputPluginTestDelegate alloc] initWithBinaryMessenger:binaryMessengerMock
+                                                           viewController:viewController];
+
+  FlutterTextInputPlugin* plugin = [[FlutterTextInputPlugin alloc] initWithDelegate:delegate];
+
+  NSDictionary* setClientConfig = @{
+    @"viewId" : @(kViewId),
+    @"inputAction" : @"action",
+    @"inputType" : @{@"name" : @"inputName"},
+  };
+  [plugin handleMethodCall:[FlutterMethodCall methodCallWithMethodName:@"TextInput.setClient"
+                                                             arguments:@[ @(1), setClientConfig ]]
+                    result:^(id){
+                    }];
+
+  // Test with NSAttributedString
+  NSAttributedString* attributedString =
+      [[NSAttributedString alloc] initWithString:@"attributed text"];
+  [plugin insertText:attributedString replacementRange:NSMakeRange(NSNotFound, 0)];
+
+  NSDictionary* editingState = [plugin editingState];
+  EXPECT_STREQ([editingState[@"text"] UTF8String], "attributed text");
+  EXPECT_EQ([editingState[@"selectionBase"] intValue], 15);
+  EXPECT_EQ([editingState[@"selectionExtent"] intValue], 15);
+}
+
+TEST(FlutterTextInputPluginTest, InsertTextHandlesEmptyAttributedString) {
+  id engineMock = flutter::testing::CreateMockFlutterEngine(@"");
+  id binaryMessengerMock = OCMProtocolMock(@protocol(FlutterBinaryMessenger));
+  OCMStub(  // NOLINT(google-objc-avoid-throwing-exception)
+      [engineMock binaryMessenger])
+      .andReturn(binaryMessengerMock);
+
+  FlutterViewController* viewController = [[FlutterViewController alloc] initWithEngine:engineMock
+                                                                                nibName:@""
+                                                                                 bundle:nil];
+
+  FlutterTextInputPluginTestDelegate* delegate =
+      [[FlutterTextInputPluginTestDelegate alloc] initWithBinaryMessenger:binaryMessengerMock
+                                                           viewController:viewController];
+
+  FlutterTextInputPlugin* plugin = [[FlutterTextInputPlugin alloc] initWithDelegate:delegate];
+
+  NSDictionary* setClientConfig = @{
+    @"viewId" : @(kViewId),
+    @"inputAction" : @"action",
+    @"inputType" : @{@"name" : @"inputName"},
+  };
+  [plugin handleMethodCall:[FlutterMethodCall methodCallWithMethodName:@"TextInput.setClient"
+                                                             arguments:@[ @(1), setClientConfig ]]
+                    result:^(id){
+                    }];
+
+  // Test with empty NSAttributedString
+  NSAttributedString* emptyAttributedString = [[NSAttributedString alloc] initWithString:@""];
+  [plugin insertText:emptyAttributedString replacementRange:NSMakeRange(NSNotFound, 0)];
+
+  NSDictionary* editingState = [plugin editingState];
+  EXPECT_STREQ([editingState[@"text"] UTF8String], "");
+  EXPECT_EQ([editingState[@"selectionBase"] intValue], 0);
+  EXPECT_EQ([editingState[@"selectionExtent"] intValue], 0);
+}
+
+TEST(FlutterTextInputPluginTest, WillUseParentControllerIfCanNotBecomeKey) {
+  id engineMock = flutter::testing::CreateMockFlutterEngine(@"");
+  id binaryMessengerMock = OCMProtocolMock(@protocol(FlutterBinaryMessenger));
+  OCMStub(  // NOLINT(google-objc-avoid-throwing-exception)
+      [engineMock binaryMessenger])
+      .andReturn(binaryMessengerMock);
+
+  [engineMock enableMultiView];
+  [engineMock runWithEntrypoint:nil];
+
+  // Create popupContoller1 first so that its viewId (1) matches kViewId
+  FlutterViewController* popupController1 = [[FlutterViewController alloc] initWithEngine:engineMock
+                                                                                  nibName:nil
+                                                                                   bundle:nil];
+  FlutterViewController* popupController2 = [[FlutterViewController alloc] initWithEngine:engineMock
+                                                                                  nibName:nil
+                                                                                   bundle:nil];
+  FlutterViewController* rootViewController =
+      [[FlutterViewController alloc] initWithEngine:engineMock nibName:nil bundle:nil];
+
+  // Configure window hierarchy
+  // RootWindow (canBecomeKeyWindow=YES)
+  //   PopupWindow1 (canBecomeKeyWindow=NO)
+  //     PopupWindow2 (canBecomeKeyWindow=NO)
+
+  NSWindow* rootWindow = [[NSWindow alloc] initWithContentRect:NSZeroRect
+                                                     styleMask:NSWindowStyleMaskTitled
+                                                       backing:NSBackingStoreBuffered
+                                                         defer:NO];
+  rootWindow.contentViewController = rootViewController;
+
+  NSWindow* popupWindow1 = [[NSWindow alloc] initWithContentRect:NSZeroRect
+                                                       styleMask:NSWindowStyleMaskBorderless
+                                                         backing:NSBackingStoreBuffered
+                                                           defer:NO];
+  popupWindow1.contentViewController = popupController1;
+  [rootWindow addChildWindow:popupWindow1 ordered:NSWindowAbove];
+
+  NSWindow* popupWindow2 = [[NSWindow alloc] initWithContentRect:NSZeroRect
+                                                       styleMask:NSWindowStyleMaskBorderless
+                                                         backing:NSBackingStoreBuffered
+                                                           defer:NO];
+  popupWindow2.contentViewController = popupController2;
+  [popupWindow1 addChildWindow:popupWindow2 ordered:NSWindowAbove];
+
+  // Initialize delegate with PopupWindow2 (can not become key window)
+  FlutterTextInputPluginTestDelegate* delegate =
+      [[FlutterTextInputPluginTestDelegate alloc] initWithBinaryMessenger:binaryMessengerMock
+                                                           viewController:popupController2];
+
+  FlutterTextInputPlugin* plugin = [[FlutterTextInputPlugin alloc] initWithDelegate:delegate];
+
+  NSDictionary* setClientConfig = @{
+    @"viewId" : @(kViewId),
+    @"inputAction" : @"action",
+    @"inputType" : @{@"name" : @"inputName"},
+  };
+  [plugin handleMethodCall:[FlutterMethodCall methodCallWithMethodName:@"TextInput.setClient"
+                                                             arguments:@[ @(1), setClientConfig ]]
+                    result:^(id){
+                    }];
+
+  // Make sure that TextInputPlugin uses the ancestor controller that has
+  // canBecomeKey set to YES.
+  EXPECT_EQ(plugin.currentViewController, rootViewController);
+}
+
 }  // namespace flutter::testing

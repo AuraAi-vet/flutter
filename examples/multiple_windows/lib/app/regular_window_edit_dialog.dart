@@ -12,20 +12,15 @@ void showRegularWindowEditDialog({
   required BuildContext context,
   required RegularWindowController controller,
 }) {
-  showDialog(
+  showDialog<void>(
     context: context,
-    builder: (context) => _RegularWindowEditDialog(
-      controller: controller,
-      onClose: () => Navigator.pop(context),
-    ),
+    builder: (context) =>
+        _RegularWindowEditDialog(controller: controller, onClose: () => Navigator.pop(context)),
   );
 }
 
 class _RegularWindowEditDialog extends StatefulWidget {
-  const _RegularWindowEditDialog({
-    required this.controller,
-    required this.onClose,
-  });
+  const _RegularWindowEditDialog({required this.controller, required this.onClose});
 
   final RegularWindowController controller;
   final VoidCallback onClose;
@@ -47,7 +42,7 @@ class _RegularWindowEditDialogState extends State<_RegularWindowEditDialog> {
 
   bool? nextIsFullscreen;
   bool? nextIsMaximized;
-  bool? nextIsMinized;
+  bool? nextIsMinimized;
 
   void _init() {
     widget.controller.addListener(_onNotification);
@@ -58,13 +53,11 @@ class _RegularWindowEditDialogState extends State<_RegularWindowEditDialog> {
     initialMinimized = widget.controller.isMinimized;
 
     widthController = TextEditingController(text: initialSize.width.toString());
-    heightController = TextEditingController(
-      text: initialSize.height.toString(),
-    );
+    heightController = TextEditingController(text: initialSize.height.toString());
     titleController = TextEditingController(text: initialTitle);
     nextIsFullscreen = null;
     nextIsMaximized = null;
-    nextIsMinized = null;
+    nextIsMinimized = null;
   }
 
   @override
@@ -106,7 +99,7 @@ class _RegularWindowEditDialogState extends State<_RegularWindowEditDialog> {
     if (widget.controller.isMinimized != initialMinimized) {
       setState(() {
         initialMinimized = widget.controller.isMinimized;
-        nextIsMinized = null;
+        nextIsMinimized = null;
       });
     }
   }
@@ -114,13 +107,16 @@ class _RegularWindowEditDialogState extends State<_RegularWindowEditDialog> {
   @override
   void dispose() {
     widget.controller.removeListener(_onNotification);
+    widthController.dispose();
+    heightController.dispose();
+    titleController.dispose();
     super.dispose();
   }
 
   void _onSave() {
-    double? width = double.tryParse(widthController.text);
-    double? height = double.tryParse(heightController.text);
-    String? title = titleController.text.isEmpty ? null : titleController.text;
+    final double? width = double.tryParse(widthController.text);
+    final double? height = double.tryParse(heightController.text);
+    final String? title = titleController.text.isEmpty ? null : titleController.text;
     if (width != null &&
         height != null &&
         (width != initialSize.width || height != initialSize.height)) {
@@ -135,8 +131,8 @@ class _RegularWindowEditDialogState extends State<_RegularWindowEditDialog> {
     if (nextIsMaximized != null && nextIsMaximized != initialMaximized) {
       widget.controller.setMaximized(nextIsMaximized!);
     }
-    if (nextIsMinized != null && nextIsMinized != initialMinimized) {
-      widget.controller.setMinimized(nextIsMinized!);
+    if (nextIsMinimized != null && nextIsMinimized != initialMinimized) {
+      widget.controller.setMinimized(nextIsMinimized!);
     }
 
     widget.onClose();
@@ -145,23 +141,23 @@ class _RegularWindowEditDialogState extends State<_RegularWindowEditDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('Edit Window Properties'),
+      title: const Text('Edit Window Properties'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           TextField(
             controller: widthController,
             keyboardType: TextInputType.number,
-            decoration: InputDecoration(labelText: 'Width'),
+            decoration: const InputDecoration(labelText: 'Width'),
           ),
           TextField(
             controller: heightController,
             keyboardType: TextInputType.number,
-            decoration: InputDecoration(labelText: 'Height'),
+            decoration: const InputDecoration(labelText: 'Height'),
           ),
           TextField(
             controller: titleController,
-            decoration: InputDecoration(labelText: 'Title'),
+            decoration: const InputDecoration(labelText: 'Title'),
           ),
           CheckboxListTile(
             title: const Text('Fullscreen'),
@@ -183,18 +179,18 @@ class _RegularWindowEditDialogState extends State<_RegularWindowEditDialog> {
           ),
           CheckboxListTile(
             title: const Text('Minimized'),
-            value: nextIsMinized ?? initialMinimized,
+            value: nextIsMinimized ?? initialMinimized,
             onChanged: (bool? value) {
               if (value != null) {
-                setState(() => nextIsMinized = value);
+                setState(() => nextIsMinimized = value);
               }
             },
           ),
         ],
       ),
       actions: [
-        TextButton(onPressed: () => widget.onClose(), child: Text('Cancel')),
-        TextButton(onPressed: () => _onSave(), child: Text('Save')),
+        TextButton(onPressed: () => widget.onClose(), child: const Text('Cancel')),
+        TextButton(onPressed: () => _onSave(), child: const Text('Save')),
       ],
     );
   }

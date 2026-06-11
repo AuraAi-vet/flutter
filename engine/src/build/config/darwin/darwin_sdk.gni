@@ -67,15 +67,19 @@ declare_args() {
   ios_swift_lib_paths = []
 
   # Version of iOS that we're targeting for tests.
-  ios_testing_deployment_target = "13.0"
+  # iOS 15.0 is the earliest version that allows swift testing tests to be loaded
+  # from dylibs without crashing.
+  ios_testing_deployment_target = "15.0"
 }
 
-# Must be set above or by gn.
-assert(mac_deployment_target != "")
-assert(defined(use_ios_simulator))
-assert(defined(ios_use_simulator))
-assert(ios_deployment_target != "")
-assert(ios_testing_deployment_target != "")
+if (target_os == "ios" || target_os == "macos") {
+  # Must be set above or by gn.
+  assert(mac_deployment_target != "")
+  assert(defined(use_ios_simulator))
+  assert(defined(ios_use_simulator))
+  assert(ios_deployment_target != "")
+  assert(ios_testing_deployment_target != "")
+}
 
 # Run darwin_sdk.py to determine SDK paths if necessary.
 _need_darwin_sdk_run = false

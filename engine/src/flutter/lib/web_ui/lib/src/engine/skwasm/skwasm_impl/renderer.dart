@@ -14,24 +14,15 @@ import 'package:ui/ui.dart' as ui;
 import 'package:ui/ui_web/src/ui_web.dart' as ui_web;
 
 class SkwasmRenderer extends Renderer {
-  late SkwasmSurface surface;
-
   bool get isMultiThreaded => skwasmIsMultiThreaded();
 
+  bool get isWimp => skwasmIsWimp();
+
+  @override
   SkwasmPathConstructors pathConstructors = SkwasmPathConstructors();
 
   @override
   final SkwasmFontCollection fontCollection = SkwasmFontCollection();
-
-  @override
-  ui.Path combinePaths(ui.PathOperation op, ui.Path path1, ui.Path path2) {
-    return LazyPath.combined(op, path1 as LazyPath, path2 as LazyPath);
-  }
-
-  @override
-  ui.Path copyPath(ui.Path src) {
-    return LazyPath.fromLazyPath(src as LazyPath);
-  }
 
   @override
   ui.Canvas createCanvas(ui.PictureRecorder recorder, [ui.Rect? cullRect]) {
@@ -64,7 +55,12 @@ class SkwasmRenderer extends Renderer {
     double sigmaX = 0.0,
     double sigmaY = 0.0,
     ui.TileMode? tileMode,
-  }) => SkwasmImageFilter.blur(sigmaX: sigmaX, sigmaY: sigmaY, tileMode: tileMode);
+    ui.Rect? bounds,
+  }) =>
+      // TODO(dkwingsmt): `bounds` is currently not implemented in Skwasm.
+      // Fall back to unbounded blur.
+      // https://github.com/flutter/flutter/issues/175899
+      SkwasmImageFilter.blur(sigmaX: sigmaX, sigmaY: sigmaY, tileMode: tileMode);
 
   @override
   ui.ImageFilter createDilateImageFilter({double radiusX = 0.0, double radiusY = 0.0}) =>
@@ -123,6 +119,11 @@ class SkwasmRenderer extends Renderer {
       SkwasmParagraphBuilder(style as SkwasmParagraphStyle, fontCollection);
 
   @override
+  WebParagraphPainter createWebParagraphPainter(WebParagraph paragraph) {
+    throw UnimplementedError('WebParagraph is not supported on Skwasm');
+  }
+
+  @override
   ui.ParagraphStyle createParagraphStyle({
     ui.TextAlign? textAlign,
     ui.TextDirection? textDirection,
@@ -150,9 +151,6 @@ class SkwasmRenderer extends Renderer {
     ellipsis: ellipsis,
     locale: locale,
   );
-
-  @override
-  ui.Path createPath() => LazyPath(pathConstructors);
 
   @override
   ui.PictureRecorder createPictureRecorder() => SkwasmPictureRecorder();
@@ -308,7 +306,7 @@ class SkwasmRenderer extends Renderer {
     int? targetHeight,
     bool allowUpscaling = true,
   }) {
-    final SkwasmImage pixelImage = SkwasmImage.fromPixels(pixels, width, height, format);
+    final pixelImage = SkwasmImage.fromPixels(pixels, width, height, format);
     final ui.Image scaledImage = scaleImageIfNeeded(
       pixelImage,
       targetWidth: targetWidth,
@@ -319,9 +317,10 @@ class SkwasmRenderer extends Renderer {
   }
 
   @override
-  FutureOr<void> initialize() {
-    surface = SkwasmSurface();
-    rasterizer = SkwasmOffscreenCanvasRasterizer(surface);
+  FutureOr<void> initialize() async {
+    rasterizer = OffscreenCanvasRasterizer(
+      (OffscreenCanvasProvider canvasProvider) => SkwasmSurface(canvasProvider),
+    );
     return super.initialize();
   }
 
@@ -337,7 +336,7 @@ class SkwasmRenderer extends Renderer {
       throw Exception('Could not determine content type of image from data');
     }
     if (browserSupportsImageDecoder) {
-      final SkwasmBrowserImageDecoder baseDecoder = SkwasmBrowserImageDecoder(
+      final baseDecoder = SkwasmBrowserImageDecoder(
         contentType: contentType.mimeType,
         dataSource: list.toJS,
         debugSource: 'encoded image bytes',
@@ -373,7 +372,7 @@ class SkwasmRenderer extends Renderer {
       throw Exception('Could not determine content type of image at url $uri');
     }
     if (browserSupportsImageDecoder) {
-      final SkwasmBrowserImageDecoder decoder = SkwasmBrowserImageDecoder(
+      final decoder = SkwasmBrowserImageDecoder(
         contentType: contentType,
         dataSource: response.body,
         debugSource: uri.toString(),
@@ -447,7 +446,7 @@ class SkwasmRenderer extends Renderer {
         imageSource,
         imageSource.width,
         imageSource.height,
-        surface.handle,
+        (pictureToImageSurface as SkwasmSurface).handle,
       ),
     );
   }
@@ -459,7 +458,7 @@ class SkwasmRenderer extends Renderer {
     required int height,
     required bool transferOwnership,
   }) async {
-    if (!transferOwnership) {
+    if (!transferOwnership || (isMultiThreaded && !_isTransferable(textureSource))) {
       textureSource = (await createImageBitmap(textureSource, (
         x: 0,
         y: 0,
@@ -468,9 +467,17 @@ class SkwasmRenderer extends Renderer {
       ))).toJSAnyShallow;
     }
     return SkwasmImage(
-      imageCreateFromTextureSource(textureSource as JSObject, width, height, surface.handle),
+      imageCreateFromTextureSource(
+        textureSource as JSObject,
+        width,
+        height,
+        (pictureToImageSurface as SkwasmSurface).handle,
+      ),
     );
   }
+
+  bool _isTransferable(JSAny object) =>
+      object.isA<DomImageBitmap>() || object.isA<VideoFrame>() || object.isA<DomOffscreenCanvas>();
 
   @override
   void dumpDebugInfo() {
@@ -478,7 +485,7 @@ class SkwasmRenderer extends Renderer {
       withStackScope((StackScope scope) {
         final Pointer<Uint32> counts = scope.allocUint32Array(28);
         skwasmGetLiveObjectCounts(counts);
-        final Map<String, dynamic> countsJson = <String, dynamic>{
+        final countsJson = <String, dynamic>{
           'lineBreakBufferCount': counts[0],
           'unicodePositionBufferCount': counts[1],
           'lineMetricsCount': counts[2],
@@ -511,8 +518,8 @@ class SkwasmRenderer extends Renderer {
         downloadDebugInfo('live_object_counts', countsJson);
       });
 
-      int i = 0;
-      for (final viewRasterizer in rasterizers.values) {
+      var i = 0;
+      for (final ViewRasterizer viewRasterizer in rasterizers.values) {
         final Map<String, dynamic>? debugJson = viewRasterizer.dumpDebugInfo();
         if (debugJson != null) {
           downloadDebugInfo('flutter-scene$i', debugJson);
@@ -524,6 +531,11 @@ class SkwasmRenderer extends Renderer {
 
   @override
   void debugResetRasterizer() {
-    rasterizer = SkwasmOffscreenCanvasRasterizer(surface);
+    rasterizer = OffscreenCanvasRasterizer(
+      (OffscreenCanvasProvider canvasProvider) => SkwasmSurface(canvasProvider),
+    );
   }
+
+  @override
+  Surface get pictureToImageSurface => (rasterizer as OffscreenCanvasRasterizer).offscreenSurface;
 }

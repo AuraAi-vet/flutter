@@ -14,7 +14,7 @@ class RefreshControlApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const CupertinoApp(
-      theme: CupertinoThemeData(brightness: Brightness.light),
+      theme: CupertinoThemeData(brightness: .light),
       home: RefreshControlExample(),
     );
   }
@@ -46,14 +46,19 @@ class _RefreshControlExampleState extends State<RefreshControlExample> {
         middle: Text('CupertinoSliverRefreshControl Sample'),
       ),
       child: CustomScrollView(
-        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
         slivers: <Widget>[
           const CupertinoSliverNavigationBar(largeTitle: Text('Scroll down')),
           CupertinoSliverRefreshControl(
             onRefresh: () async {
               await Future<void>.delayed(const Duration(milliseconds: 1000));
               setState(() {
-                items.insert(0, Container(color: colors[items.length % 3], height: 100.0));
+                items.insert(
+                  0,
+                  Container(color: colors[items.length % 3], height: 100.0),
+                );
               });
             },
           ),

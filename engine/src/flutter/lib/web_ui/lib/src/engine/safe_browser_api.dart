@@ -56,6 +56,15 @@ num? parseFontSize(DomElement element) {
   return fontSize;
 }
 
+/// Parses the given style property [attributeName] of [element] and returns the
+/// [resolved value](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_cascade/Value_processing#resolved_value) without a unit.
+///
+/// Returns `null` if the property value is not numeric (e.g., 'normal',
+/// 'auto') or cannot be parsed.
+num? parseNumericStyleProperty(DomElement element, String attributeName) {
+  return parseFloat(domWindow.getComputedStyle(element).getPropertyValue(attributeName));
+}
+
 /// Provides haptic feedback.
 void vibrate(int durationMs) {
   final DomNavigator navigator = domWindow.navigator;
@@ -68,19 +77,6 @@ void vibrate(int durationMs) {
 external JSAny? get __imageDecoderConstructor;
 Object? get _imageDecoderConstructor => __imageDecoderConstructor?.toObjectShallow;
 
-/// Environment variable that allows the developer to opt out of using browser's
-/// `ImageDecoder` API, and use the WASM codecs bundled with CanvasKit.
-///
-/// While all reported severe issues with `ImageDecoder` have been fixed, this
-/// API remains relatively new. This option will allow developers to opt out of
-/// it, if they hit a severe bug that we did not anticipate.
-// TODO(yjbanov): remove this flag once we're fully confident in the new API.
-//                https://github.com/flutter/flutter/issues/95277
-const bool _browserImageDecodingEnabled = bool.fromEnvironment(
-  'BROWSER_IMAGE_DECODING_ENABLED',
-  defaultValue: true,
-);
-
 /// Whether the current browser supports `ImageDecoder`.
 bool browserSupportsImageDecoder = _defaultBrowserSupportsImageDecoder;
 
@@ -90,9 +86,7 @@ void debugResetBrowserSupportsImageDecoder() {
 }
 
 bool get _defaultBrowserSupportsImageDecoder =>
-    _browserImageDecodingEnabled &&
-    _imageDecoderConstructor != null &&
-    _isBrowserImageDecoderStable;
+    _imageDecoderConstructor != null && _isBrowserImageDecoderStable;
 
 // TODO(yjbanov): https://github.com/flutter/flutter/issues/122761
 // Frequently, when a browser launches an API that other browsers already
@@ -152,7 +146,7 @@ extension type DecodeResult(JSObject _) implements JSObject {
 ///
 ///  * https://www.w3.org/TR/webcodecs/#dictdef-imagedecodeoptions
 extension type DecodeOptions._(JSObject _) implements JSObject {
-  external DecodeOptions({required int frameIndex});
+  external DecodeOptions({required int frameIndex, required bool completeFramesOnly});
 }
 
 /// The only frame in a static image, or one of the frames in an animated one.

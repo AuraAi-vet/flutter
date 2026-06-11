@@ -21,7 +21,7 @@ void main() {
 void doTests() {
   group('DomManager', () {
     test('DOM tree looks right', () {
-      final DomManager domManager = DomManager(devicePixelRatio: 3.0);
+      final domManager = DomManager(devicePixelRatio: 3.0);
 
       // Check tag names.
 
@@ -50,44 +50,40 @@ void doTests() {
       expect(shadowChildren[1].tagName, equalsIgnoringCase('style'));
     });
 
-    test(
-      'hide placeholder text for textfield',
-      () {
-        final DomManager domManager = DomManager(devicePixelRatio: 3.0);
-        domDocument.body!.append(domManager.rootElement);
+    test('hide placeholder text for textfield', () {
+      final domManager = DomManager(devicePixelRatio: 3.0);
+      domDocument.body!.append(domManager.rootElement);
 
-        final DomHTMLInputElement regularTextField = createDomHTMLInputElement();
-        regularTextField.placeholder = 'Now you see me';
-        domManager.rootElement.appendChild(regularTextField);
+      final DomHTMLInputElement regularTextField = createDomHTMLInputElement();
+      regularTextField.placeholder = 'Now you see me';
+      domManager.rootElement.appendChild(regularTextField);
 
-        regularTextField.focusWithoutScroll();
-        DomCSSStyleDeclaration? style = domWindow.getComputedStyle(
-          domManager.rootElement.querySelector('input')!,
-          '::placeholder',
-        );
-        expect(style, isNotNull);
-        expect(style.opacity, isNot('0'));
+      regularTextField.focusWithoutScroll();
+      DomCSSStyleDeclaration? style = domWindow.getComputedStyle(
+        domManager.rootElement.querySelector('input')!,
+        '::placeholder',
+      );
+      expect(style, isNotNull);
+      expect(style.opacity, isNot('0'));
 
-        final DomHTMLInputElement textField = createDomHTMLInputElement();
-        textField.placeholder = 'Now you dont';
-        textField.classList.add('flt-text-editing');
-        domManager.rootElement.appendChild(textField);
+      final DomHTMLInputElement textField = createDomHTMLInputElement();
+      textField.placeholder = 'Now you dont';
+      textField.classList.add('flt-text-editing');
+      domManager.rootElement.appendChild(textField);
 
-        textField.focusWithoutScroll();
-        style = domWindow.getComputedStyle(
-          domManager.rootElement.querySelector('input.flt-text-editing')!,
-          '::placeholder',
-        );
-        expect(style, isNotNull);
-        expect(style.opacity, '0');
+      textField.focusWithoutScroll();
+      style = domWindow.getComputedStyle(
+        domManager.rootElement.querySelector('input.flt-text-editing')!,
+        '::placeholder',
+      );
+      expect(style, isNotNull);
+      expect(style.opacity, '0');
 
-        domManager.rootElement.remove();
+      domManager.rootElement.remove();
 
-        // For some reason, only Firefox is able to correctly compute styles for
-        // the `::placeholder` pseudo-element.
-      },
-      skip: ui_web.browser.browserEngine != ui_web.BrowserEngine.firefox,
-    );
+      // For some reason, only Firefox is able to correctly compute styles for
+      // the `::placeholder` pseudo-element.
+    }, skip: ui_web.browser.browserEngine != ui_web.BrowserEngine.firefox);
   });
 
   group('Shadow root', () {
@@ -102,7 +98,7 @@ void doTests() {
     });
 
     test('Initializes and attaches a shadow root', () {
-      final DomManager domManager = DomManager(devicePixelRatio: 3.0);
+      final domManager = DomManager(devicePixelRatio: 3.0);
 
       expect(domManager.renderingHost.isA<DomShadowRoot>(), isTrue);
       expect(domManager.renderingHost.host, domManager.platformViewsHost);
@@ -119,7 +115,7 @@ void doTests() {
     });
 
     test('Attaches a stylesheet to the shadow root', () {
-      final DomManager domManager = DomManager(devicePixelRatio: 3.0);
+      final domManager = DomManager(devicePixelRatio: 3.0);
       final DomElement? style = domManager.renderingHost.querySelector('#flt-internals-stylesheet');
 
       expect(style, isNotNull);
@@ -128,7 +124,7 @@ void doTests() {
     });
 
     test('setScene', () {
-      final DomManager domManager = DomManager(devicePixelRatio: 3.0);
+      final domManager = DomManager(devicePixelRatio: 3.0);
 
       final DomElement sceneHost = domManager.renderingHost.querySelector('flt-scene-host')!;
 

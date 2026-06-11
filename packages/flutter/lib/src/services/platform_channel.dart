@@ -68,8 +68,7 @@ class _ProfiledBinaryMessenger implements BinaryMessenger {
 
   Future<ByteData?>? sendWithPostfix(String channel, String postfix, ByteData? message) async {
     _debugRecordUpStream(channelTypeName, '$channel$postfix', codecTypeName, message);
-    final TimelineTask timelineTask = TimelineTask()
-      ..start('Platform Channel send $channel$postfix');
+    final timelineTask = TimelineTask()..start('Platform Channel send $channel$postfix');
     final ByteData? result;
     try {
       result = await proxy.send(channel, message);
@@ -125,7 +124,7 @@ Future<void> _debugLaunchProfilePlatformChannels() async {
     _profilePlatformChannelsIsRunning = true;
     await Future<dynamic>.delayed(_profilePlatformChannelsRate);
     _profilePlatformChannelsIsRunning = false;
-    final StringBuffer log = StringBuffer();
+    final log = StringBuffer();
     log.writeln('Platform Channel Stats:');
     final List<_PlatformChannelStats> allStats = _profilePlatformChannelsStats.values.toList();
     // Sort highest combined bandwidth first.
@@ -133,7 +132,7 @@ Future<void> _debugLaunchProfilePlatformChannels() async {
       (_PlatformChannelStats x, _PlatformChannelStats y) =>
           (y.upBytes + y.downBytes) - (x.upBytes + x.downBytes),
     );
-    for (final _PlatformChannelStats stats in allStats) {
+    for (final stats in allStats) {
       log.writeln(
         '  (name:"${stats.channel}" type:"${stats.type}" codec:"${stats.codec}" upBytes:${stats.upBytes} upBytes_avg:${stats.averageUpPayload.toStringAsFixed(1)} downBytes:${stats.downBytes} downBytes_avg:${stats.averageDownPayload.toStringAsFixed(1)})',
       );
@@ -420,7 +419,7 @@ class MethodChannel {
   ///     // Errors occurring on the platform side cause invokeMethod to throw
   ///     // PlatformExceptions.
   ///     try {
-  ///       return _channel.invokeMethod('play', <String, dynamic>{
+  ///       return await _channel.invokeMethod('play', <String, dynamic>{
   ///         'song': song.id,
   ///         'volume': volume,
   ///       });
@@ -692,13 +691,13 @@ class EventChannel {
   /// stream listener count changes from 0 to 1. Stream deactivation happens
   /// only when stream listener count changes from 1 to 0.
   Stream<dynamic> receiveBroadcastStream([dynamic arguments]) {
-    final MethodChannel methodChannel = MethodChannel(name, codec);
+    final methodChannel = MethodChannel(name, codec);
     late StreamController<dynamic> controller;
     controller = StreamController<dynamic>.broadcast(
       onListen: () async {
         binaryMessenger.setMessageHandler(name, (ByteData? reply) async {
           if (reply == null) {
-            controller.close();
+            await controller.close();
           } else {
             try {
               controller.add(codec.decodeEnvelope(reply));

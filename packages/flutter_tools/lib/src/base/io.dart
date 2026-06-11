@@ -37,7 +37,7 @@ import 'dart:io'
     as io
     show
         IOSink,
-        InternetAddress,
+        InterfaceAddress,
         InternetAddressType,
         NetworkInterface,
         Process,
@@ -382,10 +382,10 @@ class _TestProcessInfo implements ProcessInfo {
   final FileSystem _fileSystem;
 
   @override
-  var currentRss = 1000;
+  int currentRss = 1000;
 
   @override
-  var maxRss = 2000;
+  int maxRss = 2000;
 
   @override
   File writePidFile(String pidFile) {
@@ -400,7 +400,7 @@ class NetworkInterface implements io.NetworkInterface {
   final io.NetworkInterface _delegate;
 
   @override
-  List<io.InternetAddress> get addresses => _delegate.addresses;
+  List<io.InterfaceAddress> get addresses => _delegate.addresses;
 
   @override
   int get index => _delegate.index;

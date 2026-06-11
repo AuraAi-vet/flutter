@@ -36,9 +36,14 @@ ConicalKind GetConicalKind(Point center,
 
 }  // namespace
 
-ConicalGradientContents::ConicalGradientContents() = default;
+ConicalGradientContents::ConicalGradientContents(const Geometry* geometry)
+    : geometry_(geometry) {}
 
 ConicalGradientContents::~ConicalGradientContents() = default;
+
+const Geometry* ConicalGradientContents::GetGeometry() const {
+  return geometry_;
+}
 
 void ConicalGradientContents::SetCenterAndRadius(Point center, Scalar radius) {
   center_ = center;
@@ -131,7 +136,8 @@ bool ConicalGradientContents::RenderSSBO(const ContentContext& renderer,
         frag_info.colors_length = colors.size();
         auto color_buffer = data_host_buffer.Emplace(
             colors.data(), colors.size() * sizeof(StopData),
-            data_host_buffer.GetMinimumUniformAlignment());
+            renderer.GetDeviceCapabilities()
+                .GetMinimumStorageBufferAlignment());
 
         FS::BindFragInfo(pass, data_host_buffer.EmplaceUniform(frag_info));
         FS::BindColorData(pass, color_buffer);

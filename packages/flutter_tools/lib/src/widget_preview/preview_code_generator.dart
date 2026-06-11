@@ -3,8 +3,8 @@
 // found in the LICENSE file.
 
 import 'package:analyzer/dart/constant/value.dart';
-import 'package:analyzer/dart/element/element2.dart' as analyzer;
-import 'package:analyzer/dart/element/element2.dart';
+import 'package:analyzer/dart/element/element.dart' as analyzer;
+import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:built_collection/built_collection.dart';
 import 'package:code_builder/code_builder.dart' as cb;
@@ -14,6 +14,7 @@ import 'package:pub_semver/pub_semver.dart';
 import '../base/file_system.dart';
 import '../project.dart';
 import 'dependency_graph.dart';
+import 'dtd_types.dart';
 import 'preview_details.dart';
 
 typedef _PreviewMappingEntry = MapEntry<PreviewPath, LibraryPreviewNode>;
@@ -32,7 +33,9 @@ class PreviewCodeGenerator {
   static const _kBuildMultiWidgetPreview = 'buildMultiWidgetPreview';
   static const _kBuildWidgetPreview = 'buildWidgetPreview';
   static const _kBuildWidgetPreviewError = 'buildWidgetPreviewError';
+  static const _kColumn = 'column';
   static const _kDependencyHasErrors = 'dependencyHasErrors';
+  static const _kLine = 'line';
   static const _kListType = 'List';
   static const _kPackageName = 'packageName';
   static const _kPackageUri = 'packageUri';
@@ -49,6 +52,61 @@ class PreviewCodeGenerator {
 
   static String getGeneratedPreviewFilePath(FileSystem fs) =>
       fs.path.join('lib', 'src', 'generated_preview.dart');
+
+  static String getGeneratedDtdConnectionInfoFilePath(FileSystem fs) =>
+      fs.path.join('lib', 'src', 'dtd', 'dtd_connection_info.dart');
+
+  void populateDtdConnectionInfo({
+    required Uri dtdUri,
+    required String widgetPreviewServiceName,
+    required String widgetPreviewScaffoldStreamName,
+    required String projectRootPath,
+  }) {
+    final emitter = cb.DartEmitter.scoped(useNullSafetySyntax: true);
+    final lib = cb.Library(
+      (cb.LibraryBuilder b) => b
+        ..ignoreForFile.add('implementation_imports')
+        ..body.addAll(<cb.Spec>[
+          cb.Field((b) {
+            b
+              ..name = 'kWidgetPreviewDtdUri'
+              ..modifier = cb.FieldModifier.constant
+              ..type = cb.refer('String')
+              ..assignment = cb.literalString(dtdUri.toString()).code;
+          }),
+          cb.Field((b) {
+            b
+              ..name = 'kWidgetPreviewService'
+              ..modifier = cb.FieldModifier.constant
+              ..type = cb.refer('String')
+              ..assignment = cb.literalString(widgetPreviewServiceName).code;
+          }),
+          cb.Field((b) {
+            b
+              ..name = 'kWidgetPreviewScaffoldStream'
+              ..modifier = cb.FieldModifier.constant
+              ..type = cb.refer('String')
+              ..assignment = cb.literalString(widgetPreviewScaffoldStreamName).code;
+          }),
+          cb.Field((b) {
+            b
+              ..name = 'kProjectRootPath'
+              ..modifier = cb.FieldModifier.constant
+              ..type = cb.refer('String')
+              ..assignment = cb.literalString(projectRootPath, raw: true).code;
+          }),
+        ]),
+    );
+    final File generatedDtdConnectionInfoFile = fs.file(
+      widgetPreviewScaffoldProject.directory.uri.resolve(getGeneratedDtdConnectionInfoFilePath(fs)),
+    );
+    generatedDtdConnectionInfoFile.writeAsStringSync(
+      // Format the generated file for readability, particularly during feature development.
+      // Note: we don't really care _how_ this is formatted, just that it's formatted, so we don't
+      // specify a language version.
+      DartFormatter(languageVersion: Version.none).format(lib.accept(emitter).toString()),
+    );
+  }
 
   // TODO(bkonyi): update generated example now that we're computing constants
   /// Generates code used by the widget preview scaffold based on the preview instances listed in
@@ -112,14 +170,32 @@ class PreviewCodeGenerator {
           ),
         ]),
     );
+    _writeGeneratedPreviewFile(lib: lib, emitter: emitter);
+  }
+
+  void populatePreviewsInGeneratedPreviewScaffoldLsp(FlutterWidgetPreviews update) {
+    final allocator = PreviewPrefixedAllocator()..populateKnownImportPrefixes(update.namespaces);
+    final emitter = cb.DartEmitter(useNullSafetySyntax: true, allocator: allocator);
+    final lib = cb.Library(
+      (cb.LibraryBuilder b) => b
+        ..ignoreForFile.add('implementation_imports')
+        ..body.addAll(<cb.Spec>[
+          cb.Method(
+            (cb.MethodBuilder b) => _buildGeneratedPreviewMethodLsp(previews: update, builder: b),
+          ),
+        ]),
+    );
+    _writeGeneratedPreviewFile(lib: lib, emitter: emitter);
+  }
+
+  void _writeGeneratedPreviewFile({required cb.Library lib, required cb.DartEmitter emitter}) {
     final File generatedPreviewFile = fs.file(
       widgetPreviewScaffoldProject.directory.uri.resolve(getGeneratedPreviewFilePath(fs)),
     );
+    final code = lib.accept(emitter).toString();
     generatedPreviewFile.writeAsStringSync(
       // Format the generated file for readability, particularly during feature development.
-      // Note: we don't really care _how_ this is formatted, just that it's formatted, so we don't
-      // specify a language version.
-      DartFormatter(languageVersion: Version.none).format(lib.accept(emitter).toString()),
+      DartFormatter(languageVersion: Version(3, 7, 0)).format(code),
     );
   }
 
@@ -156,6 +232,33 @@ class PreviewCodeGenerator {
               .build();
   }
 
+  void _buildGeneratedPreviewMethodLsp({
+    required FlutterWidgetPreviews previews,
+    required cb.MethodBuilder builder,
+  }) {
+    // Sort the entries by URI so that the code generator assigns import prefixes in a
+    // deterministic manner, mainly for testing purposes. This also results in previews being
+    // displayed in the same order across platforms with differing path styles.
+    final List<FlutterWidgetPreviewDetails> sortedPreviews = previews.previews.toList()
+      ..sort((FlutterWidgetPreviewDetails a, FlutterWidgetPreviewDetails b) {
+        return a.scriptUri.toString().compareTo(b.scriptUri.toString());
+      });
+
+    builder
+      ..body = cb.literalList([
+        for (final preview in sortedPreviews)
+          _buildPreviewsLsp(preview: preview, uri: preview.libraryUri),
+      ]).code
+      ..name = _kPreviewsFunctionName
+      ..returns =
+          (cb.TypeReferenceBuilder()
+                ..symbol = _kListType
+                ..types = ListBuilder<cb.Reference>(<cb.Reference>[
+                  cb.refer(_kWidgetPreviewClass, _kWidgetPreviewLibraryUri),
+                ]))
+              .build();
+  }
+
   cb.Expression _buildPreviews({
     required PreviewDetails preview,
     required Uri uri,
@@ -164,6 +267,8 @@ class PreviewCodeGenerator {
     final args = <String, cb.Expression>{
       _kPackageName: cb.literalString(preview.packageName!),
       _kScriptUri: cb.literalString(preview.scriptUri.toString()),
+      _kLine: cb.literalNum(preview.line),
+      _kColumn: cb.literalNum(preview.column),
     };
     // TODO(bkonyi): improve the error related code.
     if (libraryDetails.hasErrors || libraryDetails.dependencyHasErrors) {
@@ -195,6 +300,49 @@ class PreviewCodeGenerator {
       _kTransformedPreview: preview.previewAnnotation.toExpression().property(_kTransform).call([]),
     });
   }
+
+  cb.Expression _buildPreviewsLsp({
+    required FlutterWidgetPreviewDetails preview,
+    required Uri uri,
+  }) {
+    final args = <String, cb.Expression>{
+      _kPackageName: cb.literalString(preview.packageName!),
+      _kScriptUri: cb.literalString(preview.scriptUri.toString()),
+      _kLine: cb.literalNum(preview.position.line),
+      _kColumn: cb.literalNum(preview.position.character),
+    };
+    // TODO(bkonyi): improve the error related code.
+    if (preview.hasError || preview.dependencyHasErrors) {
+      return cb.refer(_kBuildWidgetPreviewError, _kUtilsUri).call([], {
+        ...args,
+        _kPackageUri: cb.literalString(uri.toString()),
+        _kPreviewFunctionName: cb.literalString(preview.functionName),
+        _kDependencyHasErrors: cb.literalBool(preview.dependencyHasErrors),
+      });
+    }
+
+    final cb.Expression previewWidget = cb
+        .refer(preview.functionName, uri.toString())
+        .call(<cb.Expression>[]);
+
+    args.addAll({
+      _kPreviewFunction: cb.Method((builder) => builder.body = previewWidget.code).closure,
+    });
+
+    if (preview.isMultiPreview) {
+      return cb.refer(_kBuildMultiWidgetPreview, _kUtilsUri).call([], {
+        ...args,
+        _kPreview: cb.CodeExpression(cb.Code(preview.previewAnnotation)),
+      }).spread;
+    }
+
+    return cb.refer(_kBuildWidgetPreview, _kUtilsUri).call([], {
+      ...args,
+      _kTransformedPreview: cb.CodeExpression(
+        cb.Code(preview.previewAnnotation),
+      ).property(_kTransform).call([]),
+    });
+  }
 }
 
 extension on DartObject {
@@ -206,7 +354,28 @@ extension on DartObject {
       DartType(isDartCoreInt: true) => cb.literalNum(toIntValue()!),
       DartType(isDartCoreString: true) => cb.literalString(toStringValue()!),
       DartType(isDartCoreNull: true) => cb.literalNull,
-      InterfaceType(element3: EnumElement()) => _createEnumInstance(this),
+      DartType(isDartCoreList: true) => cb.literalList([
+        for (final item in toListValue()!) item.toExpression(),
+      ]),
+      DartType(isDartCoreMap: true) => cb.literalMap(
+        toMapValue()!.map(
+          (key, value) => MapEntry(
+            key?.toExpression() ?? cb.literalNull,
+            value?.toExpression() ?? cb.literalNull,
+          ),
+        ),
+      ),
+      DartType(isDartCoreSet: true) => cb.literalSet([
+        for (final item in toSetValue()!) item.toExpression(),
+      ]),
+      RecordType() => () {
+        final (:Map<String, DartObject> named, :List<DartObject> positional) = toRecordValue()!;
+        return cb.literalRecord(
+          positional.map((field) => field.toExpression()).toList(),
+          named.map((key, value) => MapEntry(key, value.toExpression())),
+        );
+      }(),
+      InterfaceType(element: EnumElement()) => _createEnumInstance(this),
       InterfaceType() => _createInstance(type, this),
       FunctionType() => _createTearoff(toFunctionValue()!),
       _ => throw UnsupportedError('Unexpected DartObject type: $runtimeType'),
@@ -238,10 +407,10 @@ extension on DartObject {
     final ConstructorInvocation constructorInvocation = object.constructorInvocation!;
     final ConstructorElement constructor = constructorInvocation.constructor;
     final cb.Expression type = cb.refer(
-      dartType.element3.name3!,
-      _elementToLibraryIdentifier(dartType.element3),
+      dartType.element.name!,
+      _elementToLibraryIdentifier(dartType.element),
     );
-    final String? name = constructor.name3 == 'new' ? null : constructor.name3;
+    final String? name = constructor.name == 'new' ? null : constructor.name;
 
     final List<cb.Expression> positionalArguments = constructorInvocation.positionalArguments
         .map((e) => e.toExpression())
@@ -263,4 +432,51 @@ extension on DartObject {
 
   /// Returns the import URI for the [analyzer.LibraryElement] containing [element].
   String? _elementToLibraryIdentifier(analyzer.Element? element) => element?.library!.identifier;
+}
+
+class PreviewPrefixedAllocator implements cb.Allocator {
+  static const _doNotPrefix = ['dart:core'];
+
+  final _imports = <String, int>{};
+  static const _kInitialKey = 1;
+  int _keys = _kInitialKey;
+
+  @override
+  String allocate(cb.Reference reference) {
+    final String? symbol = reference.symbol;
+    String? url = reference.url;
+    if (url == null || _doNotPrefix.contains(url)) {
+      return symbol!;
+    }
+    url = _fixUrl(url);
+    return '_i${_imports.putIfAbsent(url, _nextKey)}.$symbol';
+  }
+
+  void populateKnownImportPrefixes(Map<String, String> imports) {
+    if (_keys != _kInitialKey) {
+      throw StateError(
+        'Attempted to populated known import prefixes when prefixes have been allocated',
+      );
+    }
+    _imports.addAll({
+      for (final MapEntry(:key, :value) in imports.entries) key: int.parse(value.substring(2)),
+    });
+    _keys += _imports.length;
+  }
+
+  int _nextKey() => _keys++;
+
+  @override
+  Iterable<cb.Directive> get imports =>
+      _imports.keys.map((u) => cb.Directive.import(u, as: '_i${_imports[u]}'));
+}
+
+/// Applies hardcoded fixes to [url].
+///
+/// See [cb.Allocator.imports] for explanations.
+String _fixUrl(String url) {
+  if (url.startsWith('package:fixnum/src/')) {
+    return 'package:fixnum/fixnum.dart';
+  }
+  return url;
 }

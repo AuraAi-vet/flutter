@@ -665,6 +665,7 @@ class AppDomain extends Domain {
     String? route,
     DebuggingOptions options,
     bool enableHotReload, {
+    Map<String, String> webDefines = const <String, String>{},
     File? applicationBinary,
     required bool trackWidgetCreation,
     String? projectRootPath,
@@ -712,6 +713,7 @@ class AppDomain extends Domain {
         platform: globals.platform,
         outputPreferences: globals.outputPreferences,
         fileSystem: globals.fs,
+        webDefines: webDefines,
       );
     } else if (enableHotReload) {
       runner = HotRunner(
@@ -796,15 +798,18 @@ class AppDomain extends Domain {
       // As it just writes to stdout.
       unawaited(
         connectionInfoCompleter.future.then<void>((DebugConnectionInfo info) {
-          final params = <String, Object?>{
+          _sendAppEvent(app, 'debugPort', {
             // The web vmservice proxy does not have an http address.
             'port': info.httpUri?.port ?? info.wsUri!.port,
             'wsUri': info.wsUri.toString(),
-          };
-          if (info.baseUri != null) {
-            params['baseUri'] = info.baseUri;
+            'baseUri': ?info.baseUri,
+          });
+          if (info.devToolsUri != null) {
+            _sendAppEvent(app, 'devTools', {'uri': info.devToolsUri!.toString()});
           }
-          _sendAppEvent(app, 'debugPort', params);
+          if (info.dtdUri != null) {
+            _sendAppEvent(app, 'dtd', {'uri': info.dtdUri!.toString()});
+          }
         }),
       );
     }
@@ -1146,7 +1151,7 @@ class DeviceDomain extends Domain {
 
   /// Creates an application package from a file in the temp directory.
   Future<String> uploadApplicationPackage(Map<String, Object?> args) async {
-    final TargetPlatform targetPlatform = getTargetPlatformForName(
+    final targetPlatform = TargetPlatform.fromName(
       _getStringArg(args, 'targetPlatform', required: true)!,
     );
     final File applicationBinary = daemon.proxyDomain.tempDirectory.childFile(
@@ -1247,7 +1252,7 @@ class DeviceDomain extends Domain {
     final tempFileName = 'screenshot_${_id++}';
     final File tempFile = daemon.proxyDomain.tempDirectory.childFile(tempFileName);
     await device.takeScreenshot(tempFile);
-    if (await tempFile.exists()) {
+    if (tempFile.existsSync()) {
       final String imageBase64 = base64.encode(await tempFile.readAsBytes());
       return imageBase64;
     } else {
@@ -1273,8 +1278,18 @@ class DeviceDomain extends Domain {
       devToolsServerAddress = Uri.parse(devToolsServerAddressStr);
     }
 
+    FlutterProject? project;
+    try {
+      project = FlutterProject.current();
+    } on ToolExit catch (_) {
+      // In daemon mode the cwd may not be a Flutter project, so we just ignore
+      // these errors and use 'Unknown' as the package name below.
+    }
     await device.dds.startDartDevelopmentService(
       Uri.parse(vmServiceUriStr),
+      appName:
+          'Kind: Flutter - Device: ${device.displayName} - '
+          'Package: ${project?.manifest.appName ?? 'Unknown'}',
       disableServiceAuthCodes: disableServiceAuthCodes,
       enableDevTools: enableDevTools,
       devToolsServerAddress: devToolsServerAddress,
@@ -1394,7 +1409,7 @@ Future<Map<String, Object?>> _deviceToMap(Device device) async {
   return <String, Object?>{
     'id': device.id,
     'name': device.displayName,
-    'platform': getNameForTargetPlatform(await device.targetPlatform),
+    'platform': (await device.targetPlatform).getName(),
     'emulator': await device.isLocalEmulator,
     'category': device.category?.toString(),
     'platformType': device.platformType?.toString(),
@@ -1448,7 +1463,7 @@ class NotifyingLogger extends DelegatingLogger {
   final messageBuffer = <LogMessage>[];
   late StreamController<LogMessage> _messageController;
 
-  var notifyVerbose = false;
+  bool notifyVerbose = false;
 
   void _onListen() {
     if (messageBuffer.isNotEmpty) {
@@ -1592,7 +1607,7 @@ class EmulatorDomain extends Domain {
     registerHandler('create', create);
   }
 
-  var emulators = EmulatorManager(
+  EmulatorManager emulators = EmulatorManager(
     fileSystem: globals.fs,
     logger: globals.logger,
     java: globals.java,
@@ -1660,7 +1675,7 @@ class ProxyDomain extends Domain {
     final String path = _getStringArg(args, 'path', required: true)!;
     final bool cacheResult = _getBoolArg(args, 'cacheResult') ?? false;
     final File file = tempDirectory.childFile(path);
-    if (!await file.exists()) {
+    if (!file.existsSync()) {
       return null;
     }
     final File hashFile = file.parent.childFile('${file.basename}.hashes');
@@ -1683,7 +1698,7 @@ class ProxyDomain extends Domain {
   Future<bool?> updateFile(Map<String, Object?> args, Stream<List<int>>? binary) async {
     final String path = _getStringArg(args, 'path', required: true)!;
     final File file = tempDirectory.childFile(path);
-    if (!await file.exists()) {
+    if (!file.existsSync()) {
       return null;
     }
     final List<Map<String, Object?>> deltaJson = (args['delta']! as List<Object?>)
@@ -1787,6 +1802,9 @@ class ProxyDomain extends Domain {
 /// A [Logger] which omits log messages to avoid breaking `--machine` formatting.
 final class MachineOutputLogger extends DelegatingLogger {
   MachineOutputLogger({required Logger parent}) : super(parent);
+
+  @override
+  bool get isMachine => true;
 
   AppDomain? _domain;
   late final AppInstance _app;

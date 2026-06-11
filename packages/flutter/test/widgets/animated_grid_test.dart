@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:flutter/src/foundation/diagnostics.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -11,8 +11,8 @@ void main() {
   testWidgets('SliverAnimatedGrid.builder respects findChildIndexCallback', (
     WidgetTester tester,
   ) async {
-    bool finderCalled = false;
-    int itemCount = 7;
+    var finderCalled = false;
+    var itemCount = 7;
     late StateSetter stateSetter;
 
     await tester.pumpWidget(
@@ -57,7 +57,7 @@ void main() {
       return SizedBox(height: 100.0, child: Center(child: Text('item $index')));
     }
 
-    final GlobalKey<AnimatedGridState> listKey = GlobalKey<AnimatedGridState>();
+    final listKey = GlobalKey<AnimatedGridState>();
 
     await tester.pumpWidget(
       Directionality(
@@ -122,7 +122,7 @@ void main() {
 
   group('SliverAnimatedGrid', () {
     testWidgets('initialItemCount', (WidgetTester tester) async {
-      final Map<int, Animation<double>> animations = <int, Animation<double>>{};
+      final animations = <int, Animation<double>>{};
 
       await tester.pumpWidget(
         Directionality(
@@ -155,7 +155,7 @@ void main() {
     });
 
     testWidgets('insert', (WidgetTester tester) async {
-      final GlobalKey<SliverAnimatedGridState> listKey = GlobalKey<SliverAnimatedGridState>();
+      final listKey = GlobalKey<SliverAnimatedGridState>();
 
       await tester.pumpWidget(
         Directionality(
@@ -236,7 +236,7 @@ void main() {
     });
 
     testWidgets('insertAll', (WidgetTester tester) async {
-      final GlobalKey<SliverAnimatedGridState> listKey = GlobalKey<SliverAnimatedGridState>();
+      final listKey = GlobalKey<SliverAnimatedGridState>();
 
       await tester.pumpWidget(
         Directionality(
@@ -293,8 +293,8 @@ void main() {
     });
 
     testWidgets('remove', (WidgetTester tester) async {
-      final GlobalKey<SliverAnimatedGridState> listKey = GlobalKey<SliverAnimatedGridState>();
-      final List<int> items = <int>[0, 1, 2];
+      final listKey = GlobalKey<SliverAnimatedGridState>();
+      final items = <int>[0, 1, 2];
 
       Widget buildItem(BuildContext context, int item, Animation<double> animation) {
         return ScaleTransition(
@@ -373,8 +373,8 @@ void main() {
     });
 
     testWidgets('removeAll', (WidgetTester tester) async {
-      final GlobalKey<SliverAnimatedGridState> listKey = GlobalKey<SliverAnimatedGridState>();
-      final List<int> items = <int>[0, 1, 2];
+      final listKey = GlobalKey<SliverAnimatedGridState>();
+      final items = <int>[0, 1, 2];
 
       Widget buildItem(BuildContext context, int item, Animation<double> animation) {
         return ScaleTransition(
@@ -424,7 +424,7 @@ void main() {
     });
 
     testWidgets('works in combination with other slivers', (WidgetTester tester) async {
-      final GlobalKey<SliverAnimatedGridState> listKey = GlobalKey<SliverAnimatedGridState>();
+      final listKey = GlobalKey<SliverAnimatedGridState>();
 
       await tester.pumpWidget(
         Directionality(
@@ -485,8 +485,8 @@ void main() {
     testWidgets(
       'passes correctly derived index of findChildIndexCallback to the inner SliverChildBuilderDelegate',
       (WidgetTester tester) async {
-        final List<int> items = <int>[0, 1, 2, 3];
-        final GlobalKey<SliverAnimatedGridState> listKey = GlobalKey<SliverAnimatedGridState>();
+        final items = <int>[0, 1, 2, 3];
+        final listKey = GlobalKey<SliverAnimatedGridState>();
 
         await tester.pumpWidget(
           Directionality(
@@ -630,8 +630,61 @@ void main() {
     );
   });
 
+  testWidgets('AnimatedGrid.scrollCacheExtent is forwarded to its inner CustomScrollView', (
+    WidgetTester tester,
+  ) async {
+    const scrollCacheExtent = ScrollCacheExtent.viewport(2.0);
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: AnimatedGrid(
+          initialItemCount: 2,
+          scrollCacheExtent: scrollCacheExtent,
+          itemBuilder: (BuildContext context, int index, Animation<double> _) {
+            return SizedBox(height: 100.0, child: Center(child: Text('item $index')));
+          },
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 100.0,
+            mainAxisSpacing: 10.0,
+            crossAxisSpacing: 10.0,
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      tester.widget<CustomScrollView>(find.byType(CustomScrollView)).scrollCacheExtent,
+      scrollCacheExtent,
+    );
+  });
+
+  testWidgets('AnimatedGrid.scrollCacheExtent defaults to null', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: AnimatedGrid(
+          initialItemCount: 2,
+          itemBuilder: (BuildContext context, int index, Animation<double> _) {
+            return SizedBox(height: 100.0, child: Center(child: Text('item $index')));
+          },
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 100.0,
+            mainAxisSpacing: 10.0,
+            crossAxisSpacing: 10.0,
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      tester.widget<CustomScrollView>(find.byType(CustomScrollView)).scrollCacheExtent,
+      isNull,
+    );
+  });
+
   testWidgets('AnimatedGrid applies MediaQuery padding', (WidgetTester tester) async {
-    const EdgeInsets padding = EdgeInsets.all(30.0);
+    const padding = EdgeInsets.all(30.0);
     EdgeInsets? innerMediaQueryPadding;
     await tester.pumpWidget(
       Directionality(
@@ -663,6 +716,32 @@ void main() {
 
     // Verify that the left/right padding is not applied.
     expect(innerMediaQueryPadding, const EdgeInsets.symmetric(horizontal: 30.0));
+  });
+
+  testWidgets('AnimatedGrid does not crash at zero area', (WidgetTester tester) async {
+    tester.view.physicalSize = Size.zero;
+    final controller = ScrollController();
+    addTearDown(tester.view.reset);
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: AnimatedGrid(
+            controller: controller,
+            itemBuilder: (_, int index, _) => Text('$index'),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2),
+          ),
+        ),
+      ),
+    );
+    expect(tester.getSize(find.byType(AnimatedGrid)), Size.zero);
+    await controller.animateTo(
+      0,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeIn,
+    );
+    await tester.pump();
   });
 }
 

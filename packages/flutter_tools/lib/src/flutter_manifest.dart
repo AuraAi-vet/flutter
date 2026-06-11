@@ -14,10 +14,19 @@ import 'base/deferred_component.dart';
 import 'base/file_system.dart';
 import 'base/logger.dart';
 import 'base/utils.dart';
-import 'globals.dart' as globals;
+import 'platform_plugins.dart';
 import 'plugins.dart';
 
 const _kValidPluginPlatforms = <String>{'android', 'ios', 'web', 'windows', 'linux', 'macos'};
+
+/// A wrapper for a platform-specific plugin configuration.
+class PluginPlatformConfig {
+  PluginPlatformConfig(this._config);
+
+  final Map<String, Object?> _config;
+
+  bool get sharedDarwinSource => _config[kSharedDarwinSource] == true;
+}
 
 /// A wrapper around the `flutter` section in the `pubspec.yaml` file.
 class FlutterManifest {
@@ -70,7 +79,7 @@ class FlutterManifest {
     required Logger logger,
     List<AssetsEntry>? assets,
     List<Font>? fonts,
-    List<Uri>? shaders,
+    List<AssetsEntry>? shaders,
     List<DeferredComponent>? deferredComponents,
     bool removeDependencies = false,
   }) {
@@ -97,9 +106,9 @@ class FlutterManifest {
     }
 
     if (shaders != null && shaders.isNotEmpty) {
-      copy._flutterDescriptor['shaders'] = YamlList.wrap(
-        shaders.map((Uri uri) => uri.toString()).toList(),
-      );
+      copy._flutterDescriptor['shaders'] = YamlList.wrap(<Object?>[
+        for (final AssetsEntry shader in shaders) shader.descriptor,
+      ]);
     }
 
     if (deferredComponents != null && deferredComponents.isNotEmpty) {
@@ -147,6 +156,15 @@ class FlutterManifest {
   // Flag to avoid printing multiple invalid version messages.
   var _hasShowInvalidVersionMsg = false;
 
+  String _invalidVersionSettingHintMessage(String invalidVersion) =>
+      'Invalid version $invalidVersion found, default value will be used.\n'
+      'In pubspec.yaml, a valid version should look like: build-name+build-number.\n'
+      'In Android, build-name is used as versionName while build-number used as versionCode.\n'
+      'Read more about Android versioning at https://developer.android.com/studio/publish/versioning\n'
+      'In iOS, build-name is used as CFBundleShortVersionString while build-number used as CFBundleVersion.\n'
+      'Read more about iOS versioning at\n'
+      'https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html\n';
+
   /// The version String from the `pubspec.yaml` file.
   /// Can be null if it isn't set or has a wrong format.
   String? get appVersion {
@@ -160,10 +178,7 @@ class FlutterManifest {
       version = Version.parse(verStr);
     } on Exception {
       if (!_hasShowInvalidVersionMsg) {
-        _logger.printStatus(
-          globals.userMessages.invalidVersionSettingHintMessage(verStr),
-          emphasis: true,
-        );
+        _logger.printStatus(_invalidVersionSettingHintMessage(verStr), emphasis: true);
         _hasShowInvalidVersionMsg = true;
       }
     }
@@ -300,6 +315,24 @@ class FlutterManifest {
     return components;
   }
 
+  /// The iOS-specific plugin configuration, if any.
+  PluginPlatformConfig? get ios {
+    final Map<String, Object?>? platforms = supportedPlatforms;
+    if (platforms == null || platforms['ios'] is! Map<String, Object?>) {
+      return null;
+    }
+    return PluginPlatformConfig(platforms['ios']! as Map<String, Object?>);
+  }
+
+  /// The macOS-specific plugin configuration, if any.
+  PluginPlatformConfig? get macos {
+    final Map<String, Object?>? platforms = supportedPlatforms;
+    if (platforms == null || platforms['macos'] is! Map<String, Object?>) {
+      return null;
+    }
+    return PluginPlatformConfig(platforms['macos']! as Map<String, Object?>);
+  }
+
   /// Returns the iOS bundle identifier declared by this manifest in its
   /// module descriptor. Returns null if there is no such declaration.
   String? get iosBundleIdentifier {
@@ -398,31 +431,7 @@ class FlutterManifest {
     return fonts;
   }
 
-  late final List<Uri> shaders = _extractAssetUris('shaders', 'Shader');
-
-  List<Uri> _extractAssetUris(String key, String singularName) {
-    if (!_flutterDescriptor.containsKey(key)) {
-      return <Uri>[];
-    }
-
-    final items = _flutterDescriptor[key] as List<Object?>?;
-    if (items == null) {
-      return const <Uri>[];
-    }
-    final results = <Uri>[];
-    for (final Object? item in items) {
-      if (item is! String || item == '') {
-        _logger.printError('$singularName manifest contains a null or empty uri.');
-        continue;
-      }
-      try {
-        results.add(Uri.parse(item));
-      } on FormatException {
-        _logger.printError('$singularName manifest contains invalid uri: $item.');
-      }
-    }
-    return results;
-  }
+  late final List<AssetsEntry> shaders = _computeAssets(_flutterDescriptor['shaders']);
 
   /// Whether localization Dart files should be generated.
   late final generateLocalizations = _flutterDescriptor['generate'] == true;
@@ -539,17 +548,7 @@ void _validateFlutter(YamlMap? yaml, List<String> errors) {
       case 'assets':
         errors.addAll(_validateAssets(yamlValue));
       case 'shaders':
-        if (yamlValue is! YamlList) {
-          errors.add(
-            'Expected "$yamlKey" to be a list, but got $yamlValue (${yamlValue.runtimeType}).',
-          );
-        } else if (yamlValue.isEmpty) {
-          break;
-        } else if (yamlValue[0] is! String) {
-          errors.add(
-            'Expected "$yamlKey" to be a list of strings, but the first element is $yamlValue (${yamlValue.runtimeType}).',
-          );
-        }
+        errors.addAll(_validateAssets(yamlValue));
       case 'fonts':
         if (yamlValue is! YamlList) {
           errors.add(
@@ -788,20 +787,23 @@ class AssetsEntry {
   const AssetsEntry({
     required this.uri,
     this.flavors = const <String>{},
+    this.platforms = const <String>{},
     this.transformers = const <AssetTransformerEntry>[],
   });
 
   final Uri uri;
   final Set<String> flavors;
+  final Set<String> platforms;
   final List<AssetTransformerEntry> transformers;
 
   Object? get descriptor {
-    if (transformers.isEmpty && flavors.isEmpty) {
+    if (transformers.isEmpty && flavors.isEmpty && platforms.isEmpty) {
       return uri.toString();
     }
     return <String, Object?>{
       _pathKey: uri.toString(),
       if (flavors.isNotEmpty) _flavorKey: flavors.toList(),
+      if (platforms.isNotEmpty) _platformsKey: platforms.toList(),
       if (transformers.isNotEmpty)
         _transformersKey: transformers.map((AssetTransformerEntry e) => e.descriptor).toList(),
     };
@@ -809,6 +811,7 @@ class AssetsEntry {
 
   static const _pathKey = 'path';
   static const _flavorKey = 'flavors';
+  static const _platformsKey = 'platforms';
   static const _transformersKey = 'transformers';
 
   static AssetsEntry? parseFromYaml(Object? yaml) {
@@ -856,11 +859,15 @@ class AssetsEntry {
       final (List<String>? flavors, List<String> flavorsErrors) = _parseFlavorsSection(
         yaml[_flavorKey],
       );
+      final (List<String>? platforms, List<String> platformsErrors) = _parsePlatformsSection(
+        yaml[_platformsKey],
+      );
       final (List<AssetTransformerEntry>? transformers, List<String> transformersErrors) =
           _parseTransformersSection(yaml[_transformersKey]);
 
       final errors = <String>[
         ...flavorsErrors.map((String e) => 'In $_flavorKey section of asset "$path": $e'),
+        ...platformsErrors.map((String e) => 'In $_platformsKey section of asset "$path": $e'),
         ...transformersErrors.map(
           (String e) => 'In $_transformersKey section of asset "$path": $e',
         ),
@@ -873,6 +880,7 @@ class AssetsEntry {
         AssetsEntry(
           uri: Uri(pathSegments: path.split('/')),
           flavors: Set<String>.from(flavors ?? <String>[]),
+          platforms: Set<String>.from(platforms ?? <String>[]),
           transformers: transformers ?? <AssetTransformerEntry>[],
         ),
         null,
@@ -892,6 +900,41 @@ class AssetsEntry {
     }
 
     return _parseList<String>(yaml, _flavorKey, 'String');
+  }
+
+  /// Parses and validates the "platforms" section of an asset entry in pubspec.yaml.
+  ///
+  /// Returns a tuple containing the parsed platforms list and any validation errors.
+  /// If errors are encountered, the platforms list will be null and errors will be non-empty.
+  static (List<String>? platforms, List<String> errors) _parsePlatformsSection(Object? yaml) {
+    if (yaml == null) {
+      return (null, <String>[]);
+    }
+
+    final (List<String>? platforms, List<String> errors) = _parseList<String>(
+      yaml,
+      _platformsKey,
+      'String',
+    );
+
+    if (errors.isNotEmpty) {
+      return (null, errors);
+    }
+
+    if (platforms != null) {
+      final Set<String> invalidPlatforms = platforms.toSet().difference(_kValidPluginPlatforms);
+
+      if (invalidPlatforms.isNotEmpty) {
+        return (
+          null,
+          <String>[
+            'Invalid platform(s): "${invalidPlatforms.join(", ")}". Supported platforms are: "${_kValidPluginPlatforms.join(", ")}".',
+          ],
+        );
+      }
+    }
+
+    return (platforms, errors);
   }
 
   static (List<AssetTransformerEntry>?, List<String> errors) _parseTransformersSection(
@@ -934,18 +977,22 @@ class AssetsEntry {
       return false;
     }
 
-    return uri == other.uri && setEquals(flavors, other.flavors);
+    return uri == other.uri &&
+        setEquals(flavors, other.flavors) &&
+        setEquals(platforms, other.platforms);
   }
 
   @override
   int get hashCode => Object.hashAll(<Object?>[
     uri.hashCode,
     Object.hashAllUnordered(flavors),
+    Object.hashAllUnordered(platforms),
     Object.hashAll(transformers),
   ]);
 
   @override
-  String toString() => 'AssetsEntry(uri: $uri, flavors: $flavors, transformers: $transformers)';
+  String toString() =>
+      'AssetsEntry(uri: $uri, flavors: $flavors, platforms: $platforms, transformers: $transformers)';
 }
 
 /// Represents an entry in the "transformers" section of an asset.

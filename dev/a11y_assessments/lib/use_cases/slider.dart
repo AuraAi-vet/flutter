@@ -7,13 +7,16 @@ import '../utils.dart';
 import 'use_cases.dart';
 
 class SliderUseCase extends UseCase {
-  SliderUseCase() : super(useCaseCategory: UseCaseCategory.core);
+  SliderUseCase();
 
   @override
   String get name => 'Slider';
 
   @override
   String get route => '/slider';
+
+  @override
+  List<Tag> get tags => <Tag>[Tag.batch1, Tag.core];
 
   @override
   Widget build(BuildContext context) => const MainWidget();
@@ -28,31 +31,30 @@ class MainWidget extends StatefulWidget {
 
 class MainWidgetState extends State<MainWidget> {
   double currentSliderValue = 20;
-  static const String accessibilityLabel = 'Accessibility Test Slider';
 
   String pageTitle = getUseCaseName(SliderUseCase());
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Semantics(headingLevel: 1, child: Text('$pageTitle demo')),
-      ),
+      appBar: AppBar(title: Semantics(headingLevel: 1, child: Text('$pageTitle demo'))),
       body: Center(
-        child: Semantics(
-          label: accessibilityLabel,
-          child: Slider(
-            value: currentSliderValue,
-            max: 100,
-            divisions: 5,
-            label: currentSliderValue.round().toString(),
-            onChanged: (double value) {
-              setState(() {
-                currentSliderValue = value;
-              });
-            },
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            const Text('My Slider'),
+            Slider(
+              value: currentSliderValue,
+              max: 100,
+              divisions: 5,
+              label: currentSliderValue.round().toString(),
+              onChanged: (double value) {
+                setState(() {
+                  currentSliderValue = value;
+                });
+              },
+            ),
+          ],
         ),
       ),
     );

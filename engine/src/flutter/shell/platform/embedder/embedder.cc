@@ -12,6 +12,8 @@
 #include <string>
 #include <vector>
 
+#include "impeller/base/flags.h"
+
 #include "flutter/fml/build_config.h"
 #include "flutter/fml/closure.h"
 #include "flutter/fml/make_copyable.h"
@@ -309,7 +311,8 @@ InferOpenGLPlatformViewCreationCallback(
         platform_dispatch_table,
     std::unique_ptr<flutter::EmbedderExternalViewEmbedder>
         external_view_embedder,
-    bool enable_impeller) {
+    bool enable_impeller,
+    impeller::Flags impeller_flags) {
 #ifdef SHELL_ENABLE_GL
   if (config->type != kOpenGL) {
     return nullptr;
@@ -481,7 +484,7 @@ InferOpenGLPlatformViewCreationCallback(
 
   return fml::MakeCopyable(
       [gl_dispatch_table, fbo_reset_after_present, platform_dispatch_table,
-       enable_impeller,
+       enable_impeller, impeller_flags,
        external_view_embedder =
            std::move(external_view_embedder)](flutter::Shell& shell) mutable {
         std::shared_ptr<flutter::EmbedderExternalViewEmbedder> view_embedder =
@@ -491,8 +494,8 @@ InferOpenGLPlatformViewCreationCallback(
               shell,                   // delegate
               shell.GetTaskRunners(),  // task runners
               std::make_unique<flutter::EmbedderSurfaceGLImpeller>(
-                  gl_dispatch_table, fbo_reset_after_present,
-                  view_embedder),       // embedder_surface
+                  gl_dispatch_table, fbo_reset_after_present, view_embedder,
+                  impeller_flags),      // embedder_surface
               platform_dispatch_table,  // embedder platform dispatch table
               view_embedder             // external view embedder
           );
@@ -521,7 +524,8 @@ InferMetalPlatformViewCreationCallback(
         platform_dispatch_table,
     std::unique_ptr<flutter::EmbedderExternalViewEmbedder>
         external_view_embedder,
-    bool enable_impeller) {
+    bool enable_impeller,
+    impeller::Flags impeller_flags) {
   if (config->type != kMetal) {
     return nullptr;
   }
@@ -558,49 +562,52 @@ InferMetalPlatformViewCreationCallback(
   std::shared_ptr<flutter::EmbedderExternalViewEmbedder> view_embedder =
       std::move(external_view_embedder);
 
-  std::unique_ptr<flutter::EmbedderSurface> embedder_surface;
-
-  if (enable_impeller) {
-    flutter::EmbedderSurfaceMetalImpeller::MetalDispatchTable
-        metal_dispatch_table = {
-            .present = metal_present,
-            .get_texture = metal_get_texture,
-        };
-    embedder_surface = std::make_unique<flutter::EmbedderSurfaceMetalImpeller>(
-        const_cast<flutter::GPUMTLDeviceHandle>(config->metal.device),
-        const_cast<flutter::GPUMTLCommandQueueHandle>(
-            config->metal.present_command_queue),
-        metal_dispatch_table, view_embedder);
-  } else {
-#if !SLIMPELLER
-    flutter::EmbedderSurfaceMetalSkia::MetalDispatchTable metal_dispatch_table =
-        {
-            .present = metal_present,
-            .get_texture = metal_get_texture,
-        };
-    embedder_surface = std::make_unique<flutter::EmbedderSurfaceMetalSkia>(
-        const_cast<flutter::GPUMTLDeviceHandle>(config->metal.device),
-        const_cast<flutter::GPUMTLCommandQueueHandle>(
-            config->metal.present_command_queue),
-        metal_dispatch_table, view_embedder);
-#else   //  !SLIMPELLER
-    FML_LOG(FATAL) << "Impeller opt-out unavailable.";
-#endif  //  !SLIMPELLER
-  }
-
   // The static leak checker gets confused by the use of fml::MakeCopyable.
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
-  return fml::MakeCopyable(
-      [embedder_surface = std::move(embedder_surface), platform_dispatch_table,
-       external_view_embedder = view_embedder](flutter::Shell& shell) mutable {
-        return std::make_unique<flutter::PlatformViewEmbedder>(
-            shell,                             // delegate
-            shell.GetTaskRunners(),            // task runners
-            std::move(embedder_surface),       // embedder surface
-            platform_dispatch_table,           // platform dispatch table
-            std::move(external_view_embedder)  // external view embedder
-        );
-      });
+  return fml::MakeCopyable([config, metal_present, metal_get_texture,
+                            view_embedder, platform_dispatch_table,
+                            enable_impeller](flutter::Shell& shell) mutable {
+    std::unique_ptr<flutter::EmbedderSurface> embedder_surface;
+
+    if (enable_impeller) {
+      flutter::EmbedderSurfaceMetalImpeller::MetalDispatchTable
+          metal_dispatch_table = {
+              .present = metal_present,
+              .get_texture = metal_get_texture,
+          };
+      impeller::Flags impeller_flags;
+      impeller_flags.use_sdfs = shell.GetSettings().impeller_use_sdfs;
+      embedder_surface =
+          std::make_unique<flutter::EmbedderSurfaceMetalImpeller>(
+              const_cast<flutter::GPUMTLDeviceHandle>(config->metal.device),
+              const_cast<flutter::GPUMTLCommandQueueHandle>(
+                  config->metal.present_command_queue),
+              metal_dispatch_table, view_embedder, impeller_flags);
+    } else {
+#if !SLIMPELLER
+      flutter::EmbedderSurfaceMetalSkia::MetalDispatchTable
+          metal_dispatch_table = {
+              .present = metal_present,
+              .get_texture = metal_get_texture,
+          };
+      embedder_surface = std::make_unique<flutter::EmbedderSurfaceMetalSkia>(
+          const_cast<flutter::GPUMTLDeviceHandle>(config->metal.device),
+          const_cast<flutter::GPUMTLCommandQueueHandle>(
+              config->metal.present_command_queue),
+          metal_dispatch_table, view_embedder);
+#else   //  !SLIMPELLER
+      FML_LOG(FATAL) << "Impeller opt-out unavailable.";
+#endif  //  !SLIMPELLER
+    }
+
+    return std::make_unique<flutter::PlatformViewEmbedder>(
+        shell,                        // delegate
+        shell.GetTaskRunners(),       // task runners
+        std::move(embedder_surface),  // embedder surface
+        platform_dispatch_table,      // platform dispatch table
+        std::move(view_embedder)      // external view embedder
+    );
+  });
 #else   // SHELL_ENABLE_METAL
   FML_LOG(ERROR) << "This Flutter Engine does not support Metal rendering.";
   return nullptr;
@@ -615,7 +622,8 @@ InferVulkanPlatformViewCreationCallback(
         platform_dispatch_table,
     std::unique_ptr<flutter::EmbedderExternalViewEmbedder>
         external_view_embedder,
-    bool enable_impeller) {
+    bool enable_impeller,
+    impeller::Flags impeller_flags) {
   if (config->type != kVulkan) {
     return nullptr;
   }
@@ -679,7 +687,7 @@ InferVulkanPlatformViewCreationCallback(
             static_cast<VkDevice>(config->vulkan.device),
             config->vulkan.queue_family_index,
             static_cast<VkQueue>(config->vulkan.queue), vulkan_dispatch_table,
-            view_embedder);
+            view_embedder, impeller_flags);
 
     return fml::MakeCopyable(
         [embedder_surface = std::move(embedder_surface),
@@ -815,7 +823,8 @@ InferPlatformViewCreationCallback(
         platform_dispatch_table,
     std::unique_ptr<flutter::EmbedderExternalViewEmbedder>
         external_view_embedder,
-    bool enable_impeller) {
+    bool enable_impeller,
+    impeller::Flags impeller_flags) {
   if (config == nullptr) {
     return nullptr;
   }
@@ -824,7 +833,7 @@ InferPlatformViewCreationCallback(
     case kOpenGL:
       return InferOpenGLPlatformViewCreationCallback(
           config, user_data, platform_dispatch_table,
-          std::move(external_view_embedder), enable_impeller);
+          std::move(external_view_embedder), enable_impeller, impeller_flags);
     case kSoftware:
       return InferSoftwarePlatformViewCreationCallback(
           config, user_data, platform_dispatch_table,
@@ -832,11 +841,11 @@ InferPlatformViewCreationCallback(
     case kMetal:
       return InferMetalPlatformViewCreationCallback(
           config, user_data, platform_dispatch_table,
-          std::move(external_view_embedder), enable_impeller);
+          std::move(external_view_embedder), enable_impeller, impeller_flags);
     case kVulkan:
       return InferVulkanPlatformViewCreationCallback(
           config, user_data, platform_dispatch_table,
-          std::move(external_view_embedder), enable_impeller);
+          std::move(external_view_embedder), enable_impeller, impeller_flags);
     default:
       return nullptr;
   }
@@ -1259,6 +1268,10 @@ MakeRenderTargetFromBackingStoreImpeller(
     FML_LOG(ERROR) << "Could not wrap embedder supplied Metal render texture.";
     return nullptr;
   }
+
+  aiks_context->GetContext()->UpdateOffscreenLayerPixelFormat(
+      resolve_tex->GetTextureDescriptor().format);
+
   resolve_tex->SetLabel("ImpellerBackingStoreResolve");
 
   impeller::TextureDescriptor msaa_tex_desc;
@@ -1619,6 +1632,31 @@ MakeViewportMetricsFromWindowMetrics(
 
   metrics.physical_width = SAFE_ACCESS(flutter_metrics, width, 0.0);
   metrics.physical_height = SAFE_ACCESS(flutter_metrics, height, 0.0);
+
+  if (SAFE_ACCESS(flutter_metrics, has_constraints, false)) {
+    metrics.physical_min_width_constraint = SAFE_ACCESS(
+        flutter_metrics, min_width_constraint, metrics.physical_width);
+    metrics.physical_max_width_constraint = SAFE_ACCESS(
+        flutter_metrics, max_width_constraint, metrics.physical_width);
+    metrics.physical_min_height_constraint = SAFE_ACCESS(
+        flutter_metrics, min_height_constraint, metrics.physical_height);
+    metrics.physical_max_height_constraint = SAFE_ACCESS(
+        flutter_metrics, max_height_constraint, metrics.physical_height);
+  } else {
+    metrics.physical_min_width_constraint = metrics.physical_width;
+    metrics.physical_max_width_constraint = metrics.physical_width;
+    metrics.physical_min_height_constraint = metrics.physical_height;
+    metrics.physical_max_height_constraint = metrics.physical_height;
+  }
+
+  if (metrics.physical_width < metrics.physical_min_width_constraint ||
+      metrics.physical_width > metrics.physical_max_width_constraint ||
+      metrics.physical_height < metrics.physical_min_height_constraint ||
+      metrics.physical_height > metrics.physical_max_height_constraint) {
+    return "Window metrics are invalid. Width and height must be within the "
+           "specified constraints.";
+  }
+
   metrics.device_pixel_ratio = SAFE_ACCESS(flutter_metrics, pixel_ratio, 1.0);
   metrics.physical_view_inset_top =
       SAFE_ACCESS(flutter_metrics, physical_view_inset_top, 0.0);
@@ -1648,11 +1686,6 @@ MakeViewportMetricsFromWindowMetrics(
     return "Physical view insets are invalid. They cannot be greater than "
            "physical height or width.";
   }
-
-  metrics.physical_min_width_constraint = metrics.physical_width;
-  metrics.physical_max_width_constraint = metrics.physical_width;
-  metrics.physical_min_height_constraint = metrics.physical_height;
-  metrics.physical_max_height_constraint = metrics.physical_height;
 
   return metrics;
 }
@@ -2078,6 +2111,7 @@ FlutterEngineResult FlutterEngineInitialize(size_t version,
   settings.assets_path = args->assets_path;
   settings.leak_vm = !SAFE_ACCESS(args, shutdown_dart_vm_when_done, false);
   settings.old_gen_heap_size = SAFE_ACCESS(args, dart_old_gen_heap_size, -1);
+  settings.enable_wide_gamut = SAFE_ACCESS(args, enable_wide_gamut, false);
 
   if (!flutter::DartVM::IsRunningPrecompiledCode()) {
     // Verify the assets path contains Dart 2 kernel assets.
@@ -2280,10 +2314,14 @@ FlutterEngineResult FlutterEngineInitialize(size_t version,
           view_focus_change_request_callback,         //
       };
 
+  impeller::Flags impeller_flags;
+  impeller_flags.use_sdfs = settings.impeller_use_sdfs;
+  impeller_flags.antialiased_lines = settings.impeller_antialiased_lines;
+
   auto on_create_platform_view = InferPlatformViewCreationCallback(
       config, user_data, platform_dispatch_table,
       std::move(external_view_embedder_result.value()),
-      settings.enable_impeller);
+      settings.enable_impeller, impeller_flags);
 
   if (!on_create_platform_view) {
     return LOG_EMBEDDER_ERROR(
@@ -2834,6 +2872,9 @@ FlutterEngineResult FlutterEngineSendPointerEvent(
     pointer_data.pan_delta_y = 0.0;
     pointer_data.scale = SAFE_ACCESS(current, scale, 0.0);
     pointer_data.rotation = SAFE_ACCESS(current, rotation, 0.0);
+    pointer_data.pressure = SAFE_ACCESS(current, pressure, 0.0);
+    pointer_data.pressure_min = SAFE_ACCESS(current, pressure_min, 0.0);
+    pointer_data.pressure_max = SAFE_ACCESS(current, pressure_max, 0.0);
     pointer_data.view_id =
         SAFE_ACCESS(current, view_id, kFlutterImplicitViewId);
     packet->SetPointerData(i, pointer_data);

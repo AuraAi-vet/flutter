@@ -30,6 +30,9 @@ class MockDelegate : public PlatformView::Delegate {
   void OnPlatformViewDispatchPlatformMessage(std::unique_ptr<PlatformMessage> message) override {}
   void OnPlatformViewDispatchPointerDataPacket(std::unique_ptr<PointerDataPacket> packet) override {
   }
+  HitTestResponse OnPlatformViewHitTest(int64_t view_id, const flutter::PointData offset) override {
+    return {.has_platform_view = false};
+  }
   void OnPlatformViewSendViewFocusEvent(const ViewFocusEvent& event) override {}
   void OnPlatformViewDispatchSemanticsAction(int64_t view_id,
                                              int32_t node_id,
@@ -95,6 +98,44 @@ class MockDelegate : public PlatformView::Delegate {
     XCTAssertTrue(platform_view->GetAccessibilityBridge());
     platform_view->SetSemanticsTreeEnabled(false);
     XCTAssertFalse(platform_view->GetAccessibilityBridge());
+    latch.Signal();
+  });
+  latch.Wait();
+
+  [engine stopMocking];
+}
+
+- (void)testLocaleCanBeSetWithoutViewController {
+  flutter::MockDelegate mock_delegate;
+  auto thread = std::make_unique<fml::Thread>("PlatformViewIOSTest");
+  auto thread_task_runner = thread->GetTaskRunner();
+  flutter::TaskRunners runners(/*label=*/self.name.UTF8String,
+                               /*platform=*/thread_task_runner,
+                               /*raster=*/thread_task_runner,
+                               /*ui=*/thread_task_runner,
+                               /*io=*/thread_task_runner);
+  id messenger = OCMProtocolMock(@protocol(FlutterBinaryMessenger));
+  id engine = OCMClassMock([FlutterEngine class]);
+
+  id flutterViewController = OCMClassMock([FlutterViewController class]);
+
+  OCMStub([flutterViewController isViewLoaded]).andReturn(NO);
+  OCMStub([flutterViewController engine]).andReturn(engine);
+  OCMStub([engine binaryMessenger]).andReturn(messenger);
+
+  auto platform_view = std::make_unique<flutter::PlatformViewIOS>(
+      /*delegate=*/mock_delegate,
+      /*rendering_api=*/flutter::IOSRenderingAPI::kMetal,
+      /*platform_views_controller=*/nil,
+      /*task_runners=*/runners,
+      /*worker_task_runner=*/nil,
+      /*is_gpu_disabled_sync_switch=*/std::make_shared<fml::SyncSwitch>());
+  fml::AutoResetWaitableEvent latch;
+  thread_task_runner->PostTask([&] {
+    std::string locale = "en-US";
+    platform_view->SetApplicationLocale(locale);
+    platform_view->SetOwnerViewController(flutterViewController);
+    OCMVerify([flutterViewController setApplicationLocale:@"en-US"]);
     latch.Signal();
   });
   latch.Wait();

@@ -33,7 +33,7 @@ Future<void> enableLLDBDebugging() async {
 TaskFunction createIosWorkflowTest({String? deviceIdOverride}) {
   return () async {
     // Create project
-    const String appName = 'ios_workflow_test';
+    const appName = 'ios_workflow_test';
     final Directory tempDirectory = dir(Directory.systemTemp.createTempSync().path);
     await exec(_flutterBin, <String>[
       'create',
@@ -73,7 +73,7 @@ Future<TaskResult> _validateWorkflow({
   required String deviceId,
   required String appDirectoryPath,
 }) async {
-  final List<String> options = <String>[
+  final options = <String>[
     '--no-android-gradle-daemon',
     '--verbose',
     '--debug',
@@ -90,7 +90,7 @@ Future<TaskResult> _validateWorkflow({
   Pattern expectedLog;
   Pattern unexpectedLog;
   const Pattern xcodeExpectedLog = 'Action result status: not yet started';
-  final Pattern lldbExpectedLog = RegExp(r'Process .* resuming');
+  final Pattern lldbExpectedLog = RegExp(r'location added to breakpoint');
   switch (workflow) {
     case IosDebugWorkflow.xcode:
       expectedLog = xcodeExpectedLog;

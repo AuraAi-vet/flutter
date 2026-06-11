@@ -46,6 +46,7 @@ class BuildBundleCommand extends BuildSubCommand {
           'darwin',
           'linux-x64',
           'linux-arm64',
+          'linux-riscv64',
           'windows-x64',
           'windows-arm64',
         ],
@@ -108,7 +109,7 @@ class BuildBundleCommand extends BuildSubCommand {
   @override
   Future<FlutterCommandResult> runCommand() async {
     final String targetPlatform = stringArg('target-platform')!;
-    final TargetPlatform platform = getTargetPlatformForName(targetPlatform);
+    final platform = TargetPlatform.fromName(targetPlatform);
     // Check for target platforms that are only allowed via feature flags.
     switch (platform) {
       case TargetPlatform.darwin:
@@ -122,6 +123,7 @@ class BuildBundleCommand extends BuildSubCommand {
         }
       case TargetPlatform.linux_x64:
       case TargetPlatform.linux_arm64:
+      case TargetPlatform.linux_riscv64:
         if (!featureFlags.isLinuxEnabled) {
           throwToolExit('Linux is not a supported target platform.');
         }

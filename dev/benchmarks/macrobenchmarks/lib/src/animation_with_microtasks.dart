@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 class AnimationWithMicrotasks extends StatefulWidget {
@@ -41,8 +43,8 @@ class _ChunkedWork {
   Future<void> start() async {
     // Run 100 pieces of synchronous work.
     // Chunked up to allow frames to be drawn.
-    for (int i = 0; i < 100; ++i) {
-      _chunkedSynchronousWork();
+    for (var i = 0; i < 100; ++i) {
+      unawaited(_chunkedSynchronousWork());
     }
   }
 
@@ -61,7 +63,7 @@ class _ChunkedWork {
   }
 
   void _syncComputationFor(Duration duration) {
-    final Stopwatch sw = Stopwatch()..start();
+    final sw = Stopwatch()..start();
     while (!_canceled && sw.elapsed < duration) {}
   }
 }

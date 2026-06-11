@@ -5,8 +5,14 @@
 #include "flutter/lib/ui/painting/display_list_deferred_image_gpu_impeller.h"
 
 #include <utility>
+#include <variant>
 
 #include "flutter/fml/make_copyable.h"
+
+// Disable a warning on Windows about use of deprecated atomic operations
+// on std::shared_ptr.  These functions are used because libcxx does not
+// yet support std::atomic<std::shared_ptr>.
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
 namespace flutter {
 
@@ -23,12 +29,13 @@ sk_sp<DlDeferredImageGPUImpeller> DlDeferredImageGPUImpeller::Make(
 sk_sp<DlDeferredImageGPUImpeller> DlDeferredImageGPUImpeller::Make(
     sk_sp<DisplayList> display_list,
     const DlISize& size,
+    SnapshotPixelFormat pixel_format,
     fml::TaskRunnerAffineWeakPtr<SnapshotDelegate> snapshot_delegate,
     fml::RefPtr<fml::TaskRunner> raster_task_runner) {
   return sk_sp<DlDeferredImageGPUImpeller>(new DlDeferredImageGPUImpeller(
       DlDeferredImageGPUImpeller::ImageWrapper::Make(
-          std::move(display_list), size, std::move(snapshot_delegate),
-          std::move(raster_task_runner))));
+          std::move(display_list), size, pixel_format,
+          std::move(snapshot_delegate), std::move(raster_task_runner))));
 }
 
 DlDeferredImageGPUImpeller::DlDeferredImageGPUImpeller(
@@ -39,13 +46,9 @@ DlDeferredImageGPUImpeller::DlDeferredImageGPUImpeller(
 DlDeferredImageGPUImpeller::~DlDeferredImageGPUImpeller() = default;
 
 // |DlImage|
-sk_sp<SkImage> DlDeferredImageGPUImpeller::skia_image() const {
-  return nullptr;
-};
-
-// |DlImage|
 std::shared_ptr<impeller::Texture>
-DlDeferredImageGPUImpeller::impeller_texture() const {
+DlDeferredImageGPUImpeller::GetImpellerTexture(
+    const std::shared_ptr<impeller::Context>& context) const {
   if (!wrapper_) {
     return nullptr;
   }
@@ -53,14 +56,27 @@ DlDeferredImageGPUImpeller::impeller_texture() const {
 }
 
 // |DlImage|
-bool DlDeferredImageGPUImpeller::isOpaque() const {
-  // Impeller doesn't currently implement opaque alpha types.
-  return false;
+flutter::DlColorSpace DlDeferredImageGPUImpeller::GetColorSpace() const {
+  if (!wrapper_) {
+    return flutter::DlColorSpace::kSRGB;
+  }
+  std::shared_ptr<impeller::Texture> texture = wrapper_->texture();
+  if (!texture) {
+    return flutter::DlColorSpace::kSRGB;
+  }
+  switch (texture->GetTextureDescriptor().format) {
+    case impeller::PixelFormat::kB10G10R10XR:
+    case impeller::PixelFormat::kR16G16B16A16Float:
+      return flutter::DlColorSpace::kExtendedSRGB;
+    default:
+      return flutter::DlColorSpace::kSRGB;
+  }
 }
 
 // |DlImage|
-bool DlDeferredImageGPUImpeller::isTextureBacked() const {
-  return wrapper_ && wrapper_->isTextureBacked();
+bool DlDeferredImageGPUImpeller::isOpaque() const {
+  // Impeller doesn't currently implement opaque alpha types.
+  return false;
 }
 
 // |DlImage|
@@ -92,12 +108,13 @@ std::shared_ptr<DlDeferredImageGPUImpeller::ImageWrapper>
 DlDeferredImageGPUImpeller::ImageWrapper::Make(
     sk_sp<DisplayList> display_list,
     const DlISize& size,
+    SnapshotPixelFormat pixel_format,
     fml::TaskRunnerAffineWeakPtr<SnapshotDelegate> snapshot_delegate,
     fml::RefPtr<fml::TaskRunner> raster_task_runner) {
-  auto wrapper = std::shared_ptr<ImageWrapper>(new ImageWrapper(
-      std::move(display_list), size, std::move(snapshot_delegate),
-      std::move(raster_task_runner)));
-  wrapper->SnapshotDisplayList();
+  auto wrapper = std::shared_ptr<ImageWrapper>(
+      new ImageWrapper(size, pixel_format, std::move(snapshot_delegate),
+                       std::move(raster_task_runner)));
+  wrapper->SnapshotDisplayList(std::move(display_list));
   return wrapper;
 }
 
@@ -107,52 +124,39 @@ DlDeferredImageGPUImpeller::ImageWrapper::Make(
     fml::TaskRunnerAffineWeakPtr<SnapshotDelegate> snapshot_delegate,
     fml::RefPtr<fml::TaskRunner> raster_task_runner) {
   auto wrapper = std::shared_ptr<ImageWrapper>(new ImageWrapper(
-      nullptr, layer_tree->frame_size(), std::move(snapshot_delegate),
-      std::move(raster_task_runner)));
+      layer_tree->frame_size(), SnapshotPixelFormat::kDontCare,
+      std::move(snapshot_delegate), std::move(raster_task_runner)));
   wrapper->SnapshotDisplayList(std::move(layer_tree));
   return wrapper;
 }
 
 DlDeferredImageGPUImpeller::ImageWrapper::ImageWrapper(
-    sk_sp<DisplayList> display_list,
     const DlISize& size,
+    SnapshotPixelFormat pixel_format,
     fml::TaskRunnerAffineWeakPtr<SnapshotDelegate> snapshot_delegate,
     fml::RefPtr<fml::TaskRunner> raster_task_runner)
     : size_(size),
-      display_list_(std::move(display_list)),
+      pixel_format_(pixel_format),
       snapshot_delegate_(std::move(snapshot_delegate)),
       raster_task_runner_(std::move(raster_task_runner)) {}
 
-DlDeferredImageGPUImpeller::ImageWrapper::~ImageWrapper() {
-  fml::TaskRunner::RunNowOrPostTask(
-      raster_task_runner_, [id = reinterpret_cast<uintptr_t>(this),
-                            texture_registry = std::move(texture_registry_)]() {
-        if (texture_registry) {
-          texture_registry->UnregisterContextListener(id);
-        }
-      });
-}
+DlDeferredImageGPUImpeller::ImageWrapper::~ImageWrapper() = default;
 
-void DlDeferredImageGPUImpeller::ImageWrapper::OnGrContextCreated() {
-  FML_DCHECK(raster_task_runner_->RunsTasksOnCurrentThread());
-  SnapshotDisplayList();
-}
+void DlDeferredImageGPUImpeller::ImageWrapper::OnGrContextCreated() {}
 
-void DlDeferredImageGPUImpeller::ImageWrapper::OnGrContextDestroyed() {
-  // Impeller textures do not have threading requirements for deletion, and
-  texture_.reset();
-}
+void DlDeferredImageGPUImpeller::ImageWrapper::OnGrContextDestroyed() {}
 
-bool DlDeferredImageGPUImpeller::ImageWrapper::isTextureBacked() const {
-  return texture_ && texture_->IsValid();
+std::shared_ptr<impeller::Texture>
+DlDeferredImageGPUImpeller::ImageWrapper::texture() const {
+  return std::atomic_load(&texture_);
 }
 
 void DlDeferredImageGPUImpeller::ImageWrapper::SnapshotDisplayList(
-    std::unique_ptr<LayerTree> layer_tree) {
+    std::variant<sk_sp<DisplayList>, std::unique_ptr<LayerTree>> content) {
   fml::TaskRunner::RunNowOrPostTask(
       raster_task_runner_,
       fml::MakeCopyable([weak_this = weak_from_this(),
-                         layer_tree = std::move(layer_tree)]() {
+                         content = std::move(content)]() mutable {
         TRACE_EVENT0("flutter", "SnapshotDisplayList (impeller)");
         auto wrapper = weak_this.lock();
         if (!wrapper) {
@@ -163,23 +167,27 @@ void DlDeferredImageGPUImpeller::ImageWrapper::SnapshotDisplayList(
           return;
         }
 
-        wrapper->texture_registry_ = snapshot_delegate->GetTextureRegistry();
-        wrapper->texture_registry_->RegisterContextListener(
-            reinterpret_cast<uintptr_t>(wrapper.get()), weak_this);
+        sk_sp<DisplayList> display_list;
 
-        if (layer_tree) {
-          wrapper->display_list_ = layer_tree->Flatten(
+        if (std::holds_alternative<sk_sp<DisplayList>>(content)) {
+          display_list = std::get<sk_sp<DisplayList>>(std::move(content));
+        } else if (std::holds_alternative<std::unique_ptr<LayerTree>>(
+                       content)) {
+          std::unique_ptr<LayerTree> layer_tree =
+              std::get<std::unique_ptr<LayerTree>>(std::move(content));
+          display_list = layer_tree->Flatten(
               DlRect::MakeWH(wrapper->size_.width, wrapper->size_.height),
-              wrapper->texture_registry_);
+              snapshot_delegate->GetTextureRegistry());
         }
-        auto snapshot = snapshot_delegate->MakeRasterSnapshotSync(
-            wrapper->display_list_, wrapper->size_);
-        if (!snapshot) {
+
+        auto texture = snapshot_delegate->MakeImpellerSnapshotSync(
+            display_list, wrapper->size_, wrapper->pixel_format_);
+        if (!texture) {
           std::scoped_lock lock(wrapper->error_mutex_);
           wrapper->error_ = "Failed to create snapshot.";
           return;
         }
-        wrapper->texture_ = snapshot->impeller_texture();
+        std::atomic_store(&wrapper->texture_, texture);
       }));
 }
 

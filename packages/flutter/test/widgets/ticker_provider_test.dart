@@ -3,33 +3,35 @@
 // found in the LICENSE file.
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:leak_tracker_flutter_testing/leak_tracker_flutter_testing.dart';
 
+import 'widgets_app_tester.dart';
+
 void main() {
   testWidgets('TickerMode', (WidgetTester tester) async {
-    const Widget widget = TickerMode(enabled: false, child: CircularProgressIndicator());
+    const Widget widget = TickerMode(enabled: false, child: _TickerWidget());
     expect(widget.toString, isNot(throwsException));
 
     await tester.pumpWidget(widget);
 
     expect(tester.binding.transientCallbackCount, 0);
 
-    await tester.pumpWidget(const TickerMode(enabled: true, child: CircularProgressIndicator()));
+    await tester.pumpWidget(const TickerMode(enabled: true, child: _TickerWidget()));
 
     expect(tester.binding.transientCallbackCount, 1);
 
-    await tester.pumpWidget(const TickerMode(enabled: false, child: CircularProgressIndicator()));
+    await tester.pumpWidget(const TickerMode(enabled: false, child: _TickerWidget()));
 
     expect(tester.binding.transientCallbackCount, 0);
   });
 
   testWidgets('Navigation with TickerMode', (WidgetTester tester) async {
     await tester.pumpWidget(
-      MaterialApp(
-        home: const LinearProgressIndicator(),
+      TestWidgetsApp(
+        home: const _TickerWidget(),
         routes: <String, WidgetBuilder>{'/test': (BuildContext context) => const Text('hello')},
       ),
     );
@@ -68,7 +70,7 @@ void main() {
         const Widget widget = _SingleTickerCreateMultipleTicker();
         await tester.pumpWidget(widget);
         final dynamic exception = tester.takeException();
-        final FlutterError error = exception as FlutterError;
+        final error = exception as FlutterError;
         expect(error.diagnostics.length, 3);
         expect(error.diagnostics[2].level, DiagnosticLevel.hint);
         expect(
@@ -100,7 +102,7 @@ void main() {
     );
 
     testWidgets('SingleTickerProviderStateMixin dispose while active', (WidgetTester tester) async {
-      final GlobalKey<_SingleTickerTestState> key = GlobalKey<_SingleTickerTestState>();
+      final key = GlobalKey<_SingleTickerTestState>();
       final Widget widget = _SingleTickerTest(key: key);
       await tester.pumpWidget(widget);
       FlutterError? error;
@@ -143,7 +145,7 @@ void main() {
     });
 
     testWidgets('SingleTickerProviderStateMixin dispose while active', (WidgetTester tester) async {
-      final GlobalKey<_SingleTickerTestState> key = GlobalKey<_SingleTickerTestState>();
+      final key = GlobalKey<_SingleTickerTestState>();
       final Widget widget = _SingleTickerTest(key: key);
       await tester.pumpWidget(widget);
       FlutterError? error;
@@ -188,7 +190,7 @@ void main() {
     testWidgets('TickerProviderStateMixin dispose while any ticker is active', (
       WidgetTester tester,
     ) async {
-      final GlobalKey<_MultipleTickerTestState> key = GlobalKey<_MultipleTickerTestState>();
+      final key = GlobalKey<_MultipleTickerTestState>();
       final Widget widget = _MultipleTickerTest(key: key);
       await tester.pumpWidget(widget);
       FlutterError? error;
@@ -243,6 +245,24 @@ void main() {
       tester.state<_MultipleTickerTestState>(find.byType(_MultipleTickerTest)).toStringCount,
       0,
     );
+  });
+
+  // Regression test for https://github.com/flutter/flutter/issues/185247.
+  testWidgets('SingleTickerProviderStateMixin does not throw error for late controller member', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const _LateDisposeSingle());
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(tester.takeException(), isNull);
+  });
+
+  // Regression test for https://github.com/flutter/flutter/issues/185247.
+  testWidgets('TickerProviderStateMixin does not throw error for late controller member', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const _LateDispose());
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(tester.takeException(), isNull);
   });
 }
 
@@ -300,7 +320,7 @@ class _MultipleTickerTestState extends State<_MultipleTickerTest> with TickerPro
   @override
   void initState() {
     super.initState();
-    const Duration duration = Duration(seconds: 100);
+    const duration = Duration(seconds: 100);
     controllers.add(AnimationController(vsync: this, duration: duration));
     controllers.add(AnimationController(vsync: this, duration: duration));
   }
@@ -333,6 +353,80 @@ class _SingleTickerCreateMultipleTickerState extends State<_SingleTickerCreateMu
     super.initState();
     AnimationController(duration: const Duration(seconds: 5), vsync: this);
     AnimationController(duration: const Duration(seconds: 6), vsync: this);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container();
+  }
+}
+
+/// A widget that creates and runs a ticker for testing purposes.
+class _TickerWidget extends StatefulWidget {
+  const _TickerWidget();
+
+  @override
+  State<_TickerWidget> createState() => _TickerWidgetState();
+}
+
+class _TickerWidgetState extends State<_TickerWidget> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 1))..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container();
+  }
+}
+
+class _LateDispose extends StatefulWidget {
+  const _LateDispose();
+
+  @override
+  State<_LateDispose> createState() => _LateDisposeState();
+}
+
+class _LateDisposeState extends State<_LateDispose> with TickerProviderStateMixin {
+  late final _controller = AnimationController(vsync: this);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container();
+  }
+}
+
+class _LateDisposeSingle extends StatefulWidget {
+  const _LateDisposeSingle();
+
+  @override
+  State<_LateDisposeSingle> createState() => _LateDisposeSingleState();
+}
+
+class _LateDisposeSingleState extends State<_LateDisposeSingle>
+    with SingleTickerProviderStateMixin {
+  late final _controller = AnimationController(vsync: this);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   @override

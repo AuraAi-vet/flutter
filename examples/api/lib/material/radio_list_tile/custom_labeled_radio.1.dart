@@ -23,7 +23,12 @@ class LabeledRadioApp extends StatelessWidget {
 }
 
 class LabeledRadio extends StatelessWidget {
-  const LabeledRadio({super.key, required this.label, required this.padding, required this.value});
+  const LabeledRadio({
+    super.key,
+    required this.label,
+    required this.padding,
+    required this.value,
+  });
 
   final String label;
   final EdgeInsets padding;
@@ -69,16 +74,16 @@ class _LabeledRadioExampleState extends State<LabeledRadioExample> {
           });
         },
         child: const Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment: .center,
           children: <LabeledRadio>[
             LabeledRadio(
               label: 'This is the first label text',
-              padding: EdgeInsets.symmetric(horizontal: 5.0),
+              padding: .symmetric(horizontal: 5.0),
               value: true,
             ),
             LabeledRadio(
               label: 'This is the second label text',
-              padding: EdgeInsets.symmetric(horizontal: 5.0),
+              padding: .symmetric(horizontal: 5.0),
               value: false,
             ),
           ],
